@@ -9,6 +9,10 @@ trakarr's mark, shared by the landing page in `site/` and the dashboard in `app/
   inline.
 - `wordmark.css`: a `.wordmark` class that sets the name like the landing
   page's hero heading.
+- `banner.svg`: the repository README's header. The mark, the name and the
+  tagline next to the landing page's chart, in its dark colours, fixed. The
+  text is drawn as paths, since an `<img>` can't load Inter, and the mark
+  carries `logo.css`'s animation inside.
 
 ## The mark
 

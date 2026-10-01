@@ -1,10 +1,6 @@
 <p align="center">
-  <img src="assets/logo.svg" width="96" height="96" alt="" />
+  <img src="assets/banner.svg" alt="trakarr: Keep your ratio guarded!" />
 </p>
-
-<h1 align="center">trakarr</h1>
-
-<p align="center">Keep your ratio guarded!</p>
 
 trakarr holds downloads when your ratio drops and releases them once seeding
 brings it back.
