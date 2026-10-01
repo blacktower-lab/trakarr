@@ -1,0 +1,27 @@
+name: Release
+
+# A version tag publishes the tarball install.sh downloads. The release is
+# published, not a draft: install.sh looks for the latest one.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+      - run: npm ci
+      - run: npm test
+      - run: scripts/package.sh "$GITHUB_REF_NAME"
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" "trakarr-$GITHUB_REF_NAME.tar.gz" --title "$GITHUB_REF_NAME" --generate-notes

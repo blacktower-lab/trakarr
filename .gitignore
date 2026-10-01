@@ -1,0 +1,5 @@
+.DS_Store
+/config/
+/.package/
+/trakarr-*.tar.gz
+/node_modules/

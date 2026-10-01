@@ -1,0 +1,16 @@
+@layer theme, base, components, utilities;
+
+@import "tailwindcss";
+@import "@heroui/styles";
+@import "@fontsource-variable/inter";
+@import "./themes/plain.css" layer(theme);
+
+/* The font the theme asks for. HeroUI's export expects the app to load it. */
+:root {
+  --font-inter: "Inter Variable", sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

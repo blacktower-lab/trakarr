@@ -1,0 +1,43 @@
+name: Pages
+
+# Publishes the landing page in site/ as it is, with no build, and the shared
+# assets/ next to it, where the page's ../assets/ links resolve.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "assets/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/configure-pages@v6
+        with:
+          enablement: true
+      - name: Put the page and the assets together
+        run: |
+          mkdir _site
+          cp -R site/. _site/
+          cp -R assets _site/assets
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v5

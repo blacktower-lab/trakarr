@@ -1,0 +1,10 @@
+{
+  "name": "trakarr",
+  "private": true,
+  "workspaces": ["server", "app"],
+  "scripts": {
+    "dev": "scripts/run.sh",
+    "build": "npm run build -w app",
+    "test": "npm test -w server"
+  }
+}

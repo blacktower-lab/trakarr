@@ -1,0 +1,7 @@
+/* The wordmark is set like the landing page's hero heading: Inter, bold, tight.
+   Each page loads Inter itself, and each header sets the size. */
+.wordmark {
+  font-family: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}

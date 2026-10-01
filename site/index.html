@@ -1,0 +1,1649 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>trakarr · Your ratio, guarded</title>
+    <meta
+      name="description"
+      content="trakarr watches qBittorrent and holds a private tracker's downloads when its ratio drops, then releases them once seeding brings it back."
+    />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="../assets/logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="../assets/logo.css" />
+    <link rel="stylesheet" href="../assets/wordmark.css" />
+    <link rel="preload" href="inter.woff2" as="font" type="font/woff2" crossorigin />
+    <style>
+      /* Hallmark · genre: modern-minimal · macrostructure: Map / Diagram · theme: the app's (HeroUI, plain)
+       * tone: technical · anchor hue: neutral · enrichment: hand-built SVG chart · nav: N9 · footer: none
+       * pre-emit critique: P4 H5 E5 S5 R5 V4 */
+
+      /* Inter, self-hosted like the app does, with its optical sizes so the
+         heading gets the display cut. Its license is in inter-license.txt. */
+      @font-face {
+        font-family: "Inter Variable";
+        font-style: normal;
+        font-display: swap;
+        font-weight: 100 900;
+        src: url("inter.woff2") format("woff2-variations");
+      }
+
+      /* The app's colors: the plain HeroUI theme, dark first. */
+      :root {
+        --background: oklch(12% 0 0);
+        --surface: oklch(16% 0 0);
+        --foreground: oklch(99.11% 0 0);
+        --muted: oklch(70.5% 0 0);
+        --border: oklch(26% 0 0);
+        --grid: oklch(18.5% 0 0);
+        --danger: oklch(0.7044 0.1872 23.19);
+        --success: oklch(0.6514 0.1321 156.22);
+        /* The flames' own red where they touch what burns, as in the app. */
+        --flame: rgb(255 77 26);
+        --font: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+        --text-sm: 0.8125rem;
+        --text-base: 0.9375rem;
+        --text-lede: 1.125rem;
+        --text-title: clamp(1.875rem, 2.5vw + 1rem, 2.75rem);
+        --text-display: clamp(2.75rem, 5vw + 1rem, 5.25rem);
+
+        --space-2xs: 0.25rem;
+        --space-xs: 0.5rem;
+        --space-sm: 0.75rem;
+        --space-md: 1rem;
+        --space-lg: 1.5rem;
+        --space-xl: 2.5rem;
+        --space-2xl: 4rem;
+        --space-3xl: 6rem;
+
+        /* The page's column. The chart draws one pixel per unit up to 1000px. */
+        --page: min(1000px, 100% - 2 * var(--space-lg));
+        --radius: 10px;
+
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+        --dur-micro: 120ms;
+        --dur-long: 560ms;
+      }
+
+      @media (prefers-color-scheme: light) {
+        :root {
+          --background: oklch(97.02% 0 0);
+          --surface: oklch(99.5% 0 0);
+          --foreground: oklch(21.03% 0 0);
+          --muted: oklch(52% 0 0);
+          --border: oklch(89% 0 0);
+          --grid: oklch(93.5% 0 0);
+          --danger: oklch(0.573 0.2249 21.97);
+          --success: oklch(0.6277 0.1604 153.06);
+        }
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        overflow-x: clip;
+      }
+
+      body {
+        min-height: 100svh;
+        display: flex;
+        flex-direction: column;
+        background: var(--background);
+        color: var(--foreground);
+        font-family: var(--font);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      .bar,
+      .intro,
+      .how {
+        width: var(--page);
+        margin-inline: auto;
+      }
+
+      .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-block: var(--space-sm) var(--space-lg);
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 22px;
+      }
+
+      .brand .logo {
+        width: 38px;
+        height: 38px;
+      }
+
+      .github {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        padding: var(--space-xs) var(--space-md) var(--space-xs) var(--space-sm);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 14px;
+        font-weight: 500;
+        white-space: nowrap;
+        transition:
+          background-color var(--dur-micro) var(--ease-out),
+          border-color var(--dur-micro) var(--ease-out);
+      }
+
+      .github svg {
+        width: 16px;
+        height: 16px;
+      }
+
+      @media (hover: hover) {
+        .github:hover {
+          border-color: var(--muted);
+          background: var(--surface);
+        }
+      }
+
+      .hero {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        --gap: var(--space-2xl);
+        gap: var(--gap);
+        padding-block: var(--space-lg) var(--space-2xl);
+      }
+
+      /* Stacked on phones. From 60rem the heading takes the left and the
+         pitch the right, both sitting on the same bottom line. */
+      .intro {
+        display: grid;
+        /* minmax(0, …) so the long install command scrolls instead of widening the page. */
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-xl);
+      }
+
+      /* The heading sizes itself against this column. */
+      .title {
+        container-type: inline-size;
+      }
+
+      h1 {
+        margin: 0;
+        /* Each line stays whole. Where the column is too narrow for "ratio
+           guarded!", the size shrinks to fit it. */
+        font-size: min(var(--text-display), 15.5cqi);
+        white-space: nowrap;
+        line-height: 0.98;
+        font-weight: 700;
+        letter-spacing: -0.035em;
+      }
+
+      .lede {
+        max-width: 34rem;
+        margin: 0;
+        color: var(--muted);
+        font-size: var(--text-lede);
+        line-height: 1.6;
+        text-wrap: pretty;
+      }
+
+      .install-label {
+        margin: var(--space-xl) 0 var(--space-xs);
+        color: var(--muted);
+        font-size: var(--text-sm);
+        font-weight: 500;
+      }
+
+      .command {
+        display: flex;
+        align-items: center;
+        max-width: 34rem;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .command code {
+        flex: 1;
+        min-width: 0;
+        padding: var(--space-sm) 0 var(--space-sm) var(--space-md);
+        overflow-x: auto;
+        white-space: nowrap;
+        font-family: var(--mono);
+        font-size: var(--text-sm);
+        scrollbar-width: none;
+        mask-image: linear-gradient(90deg, #000 88%, transparent);
+      }
+
+      .command code::before {
+        content: "$ ";
+        color: var(--muted);
+      }
+
+      .command button {
+        position: relative;
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 2rem;
+        height: 2rem;
+        margin: var(--space-2xs);
+        padding: 0;
+        border: 0;
+        border-radius: 6px;
+        background: none;
+        color: var(--foreground);
+        cursor: pointer;
+        transition:
+          opacity var(--dur-micro) var(--ease-out),
+          transform var(--dur-micro) var(--ease-out);
+      }
+
+      /* The button shows an icon and says what it did to a screen reader: the
+         label below is hidden to the eye only. */
+      .command button .label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
+      .command button svg {
+        width: 1rem;
+        height: 1rem;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .command button .done,
+      .command button .failed,
+      .command button[data-state="copied"] .copy,
+      .command button[data-state="failed"] .copy {
+        display: none;
+      }
+
+      .command button[data-state="copied"] .done,
+      .command button[data-state="failed"] .failed {
+        display: block;
+      }
+
+      @media (hover: hover) {
+        .command button:hover {
+          opacity: 0.85;
+        }
+      }
+
+      .command button:active {
+        transform: translateY(1px);
+      }
+
+      .command button:focus-visible,
+      .github:focus-visible,
+      .brand:focus-visible {
+        outline: 2px solid var(--foreground);
+        outline-offset: 2px;
+      }
+
+      /* Hallmark · component: ratio animation · genre: modern-minimal · theme: app tokens
+       * states: downloading · seeding · held · freeleech · download marker · hold event · release event · reduced motion */
+      .chart {
+        position: relative;
+        isolation: isolate;
+        width: 100%;
+        margin: 0 auto;
+      }
+
+      /* One unit is one pixel at any width: the view keeps its right side,
+         where the head is, and shows as much of the past as fits. The oldest
+         of it fades out at the left edge. */
+      .chart svg {
+        display: block;
+        width: 100%;
+        height: 264px;
+        font-family: var(--font);
+        mask-image: linear-gradient(90deg, transparent, #000 96px);
+      }
+
+      /* A freeleech's flames, drawn on a canvas of the same box and with the same
+         mask, so the fire fades out at the left edge too. It sits between the
+         grid and the line: the grid's svg goes under it, the chart's over it. */
+      .chart .backdrop {
+        position: absolute;
+        z-index: -2;
+        top: 0;
+        left: 0;
+      }
+
+      .chart canvas {
+        position: absolute;
+        z-index: -1;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 264px;
+        pointer-events: none;
+        mask-image: linear-gradient(90deg, transparent, #000 96px);
+      }
+
+      /* What the tracker is doing right now and what that does to the ratio.
+         The states sit in the same spot and take turns, centered under the
+         chart and above the svg, whose mask would paint over them. It stays
+         below the hold line's labels. */
+      .status {
+        position: absolute;
+        z-index: 1;
+        bottom: var(--space-xs);
+        left: 50%;
+        translate: -50% 0;
+        display: grid;
+      }
+
+      .status > span {
+        grid-area: 1 / 1;
+        justify-self: center;
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-xs);
+        min-height: 30px;
+        padding: 5px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        font-size: 13px;
+        font-weight: 500;
+        white-space: nowrap;
+        opacity: 0;
+        transform: translateY(3px);
+        transition:
+          opacity var(--dur-micro) var(--ease-out),
+          transform var(--dur-micro) var(--ease-out);
+      }
+
+      .status > span::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--dot);
+        box-shadow: 0 0 0 3px color-mix(in oklch, var(--dot) 20%, transparent);
+      }
+
+      .status .downloading {
+        --dot: var(--success);
+      }
+
+      .status .seeding {
+        --dot: var(--muted);
+      }
+
+      .status .held {
+        --dot: var(--danger);
+      }
+
+      .status .freeleech {
+        --dot: var(--flame);
+      }
+
+      .chart[data-state="downloading"] .status .downloading,
+      .chart[data-state="seeding"] .status .seeding,
+      .chart[data-state="held"] .status .held,
+      .chart[data-state="freeleech"] .status .freeleech {
+        opacity: 1;
+        transform: none;
+        transition-delay: var(--dur-micro);
+      }
+
+      .chart .grid {
+        fill: none;
+        stroke: var(--grid);
+      }
+
+      .chart .now {
+        stroke: var(--border);
+        stroke-dasharray: 2 4;
+      }
+
+      .chart .limit {
+        stroke-width: 1;
+        stroke-dasharray: 4 5;
+        stroke-opacity: 0.7;
+      }
+
+      .chart .limit.hold {
+        stroke: var(--danger);
+      }
+
+      .chart .limit.release {
+        stroke: var(--success);
+      }
+
+      .chart text {
+        font-size: 12px;
+        font-weight: 500;
+        fill: var(--muted);
+      }
+
+      .chart .limit-value,
+      .chart .ratio {
+        fill: var(--foreground);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+
+      /* On phones the labels keep the page's margin from the screen's edge. */
+      .chart .scale {
+        transform: translateX(calc(-1 * var(--space-lg)));
+      }
+
+      .chart .area {
+        fill: url(#fade);
+      }
+
+      .chart .area.held {
+        fill: url(#fade-held);
+      }
+
+      .chart .fade-top {
+        stop-color: var(--foreground);
+        stop-opacity: 0.08;
+      }
+
+      .chart .fade-bottom {
+        stop-color: var(--foreground);
+        stop-opacity: 0;
+      }
+
+      .chart .held-top {
+        stop-color: var(--danger);
+        stop-opacity: 0.12;
+      }
+
+      .chart .held-bottom {
+        stop-color: var(--danger);
+        stop-opacity: 0;
+      }
+
+      .chart .line {
+        fill: none;
+        stroke: var(--foreground);
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .chart .line.held {
+        stroke: var(--danger);
+      }
+
+      /* A little wider than the line under it, so its antialiased edge doesn't
+         show around the flames' red. */
+      .chart .line.freeleech {
+        stroke: var(--flame);
+        stroke-width: 3;
+      }
+
+      .chart .event.hold {
+        color: var(--danger);
+      }
+
+      .chart .event.release {
+        color: var(--success);
+      }
+
+      .chart .mark {
+        fill: currentColor;
+        stroke: var(--background);
+        stroke-width: 2;
+      }
+
+      /* A torrent grabbed: its name on top, and a line down to where the
+         ratio was as it started. */
+      .chart .stem {
+        stroke: var(--muted);
+        stroke-opacity: 0.5;
+        stroke-dasharray: 2 3;
+      }
+
+      .chart .dot {
+        fill: var(--foreground);
+        stroke: var(--background);
+        stroke-width: 2;
+      }
+
+      .chart .download.new {
+        animation: appear 240ms var(--ease-out) both;
+      }
+
+      .chart .download text,
+      .chart .event text,
+      .chart .ratio {
+        paint-order: stroke;
+        stroke: var(--background);
+        stroke-width: 4px;
+        stroke-linejoin: round;
+      }
+
+      /* An event pulses once as the head makes it, and its label comes in. */
+      .chart .pulse {
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 1.5;
+        vector-effect: non-scaling-stroke;
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: pulse 900ms var(--ease-out) both;
+      }
+
+      .chart .event.new text {
+        animation: appear 240ms var(--ease-out) both;
+      }
+
+      @keyframes pulse {
+        from {
+          opacity: 0.8;
+        }
+        to {
+          opacity: 0;
+          transform: scale(3.5);
+        }
+      }
+
+      @keyframes appear {
+        from {
+          opacity: 0;
+        }
+      }
+
+      .chart .head {
+        color: var(--foreground);
+        transition: color 180ms linear;
+      }
+
+      .chart[data-state="held"] .head {
+        color: var(--danger);
+      }
+
+      .chart[data-state="freeleech"] .head {
+        color: var(--flame);
+      }
+
+      .chart .head circle {
+        fill: currentColor;
+      }
+
+      .chart .ring {
+        opacity: 0.16;
+      }
+
+      .chart .head .core {
+        stroke: var(--background);
+        stroke-width: 2;
+      }
+
+      /* How it works, under the chart: the three steps as blocks, side by side on
+         a wide screen and stacked on a phone. */
+      .how {
+        display: grid;
+        gap: var(--space-xl);
+        /* Closer to the chart than the page's other parts are to each other. */
+        margin-top: calc(var(--space-xl) - var(--gap));
+      }
+
+      .how h2 {
+        margin: 0;
+        font-size: var(--text-title);
+        line-height: 1.05;
+        font-weight: 700;
+        letter-spacing: -0.035em;
+      }
+
+      .steps {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: var(--space-md);
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .steps li {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-xs);
+        padding: var(--space-lg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+      }
+
+      .steps svg {
+        box-sizing: content-box;
+        width: 1.125rem;
+        height: 1.125rem;
+        margin-bottom: var(--space-sm);
+        padding: 0.4375rem;
+        border: 1px solid var(--border);
+        border-radius: 50%;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .steps h3 {
+        margin: 0;
+        font-size: var(--text-lede);
+        font-weight: 600;
+        letter-spacing: -0.02em;
+      }
+
+      .steps p {
+        margin: 0;
+        color: var(--muted);
+        font-size: var(--text-base);
+        line-height: 1.6;
+        text-wrap: pretty;
+      }
+
+      /* The page comes in once, gently. */
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+      }
+
+      .title > *,
+      .pitch > *,
+      .band {
+        animation: rise var(--dur-long) var(--ease-out) both;
+      }
+
+      .title > h1 {
+        animation-delay: 60ms;
+      }
+
+      .pitch > :nth-child(1) {
+        animation-delay: 120ms;
+      }
+
+      .pitch > :nth-child(n + 2) {
+        animation-delay: 180ms;
+      }
+
+      .band {
+        animation-delay: 240ms;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .title > *,
+        .pitch > *,
+        .band {
+          animation: none;
+        }
+
+        .chart .head,
+        .status > span {
+          transition: none;
+        }
+
+        .chart .pulse {
+          display: none;
+        }
+
+        .chart .event.new text,
+        .chart .download.new {
+          animation: none;
+        }
+
+        .command button:active {
+          transform: none;
+        }
+      }
+
+      /* Where the longest state doesn't fit on a line it goes under the chart,
+         where it can wrap, instead of over the hold line's labels. */
+      @media (max-width: 30rem) {
+        .chart {
+          display: flex;
+          flex-direction: column;
+        }
+
+        .status {
+          order: 1;
+          position: static;
+          translate: none;
+          justify-items: center;
+          padding: var(--space-sm) var(--space-lg);
+        }
+
+        .status > span {
+          align-self: center;
+          text-align: center;
+          text-wrap: balance;
+          white-space: normal;
+        }
+      }
+
+      @media (min-width: 60rem) {
+        .intro {
+          grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+          align-items: end;
+          column-gap: var(--space-2xl);
+        }
+
+        .steps {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .hero {
+          --gap: var(--space-3xl);
+          padding-block: var(--space-xl) var(--space-3xl);
+        }
+
+        /* Past the column's width the band keeps going but the chart stays in it. */
+        .chart {
+          width: var(--page);
+        }
+
+        .chart .scale {
+          transform: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <a class="brand" href="./">
+        <!-- The mark, from assets/, inlined by the script below. -->
+        <img class="logo" src="../assets/logo.svg" alt="" />
+        <span class="wordmark">trakarr</span>
+      </a>
+      <a class="github" href="https://github.com/blacktower-lab/trakarr">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path
+            d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.69 5.39-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"
+          />
+        </svg>
+        Github
+      </a>
+    </header>
+
+    <main class="hero">
+      <div class="intro">
+        <div class="title">
+          <h1>Keep your<br />ratio guarded!</h1>
+        </div>
+        <div class="pitch">
+          <p class="lede">trakarr holds downloads when your ratio drops and releases them once seeding brings it back.</p>
+          <p class="install-label">Install on Debian or Ubuntu</p>
+          <div class="command">
+            <code id="command">bash -c "$(curl -fsSL https://raw.githubusercontent.com/blacktower-lab/trakarr/main/scripts/install.sh)"</code>
+            <button type="button" data-copy aria-live="polite">
+              <!-- Lucide's copy, check and x, as in the app. -->
+              <svg class="copy" viewBox="0 0 24 24" aria-hidden="true">
+                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+              </svg>
+              <svg class="done" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              <svg class="failed" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+              <span class="label">Copy</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="band">
+        <!-- A tracker's ratio, live. Each torrent grabbed shows as a line with
+             its name; while it downloads the ratio falls, and while nothing
+             does seeding raises it, past 1.1 and beyond. Downloads are held the
+             moment it drops below 1.0 and resume once seeding brings it past
+             1.1. Now and then a freeleech comes: downloads don't count, so the
+             ratio holds still while the chart speeds up and the line burns.
+             The script below draws it. -->
+        <figure
+          class="chart"
+          data-state="downloading"
+          role="img"
+          aria-label="A tracker's ratio, live: each download pulls it down and seeding brings it back up, downloads are held the moment it drops below 1.0, and they resume once it's past 1.1. On a freeleech downloads don't count, so the ratio holds still and the line burns"
+        >
+          <div class="status" aria-hidden="true">
+            <span class="downloading">Downloading, the ratio goes down…</span>
+            <span class="seeding">Seeding, the ratio goes up…</span>
+            <span class="held">Minimum ratio reached, downloads on hold while seeding…</span>
+            <span class="freeleech">Freeleech, downloads don't count, the ratio holds…</span>
+          </div>
+          <!-- What's behind the flames: the grid, the head's line and the two
+               limits. They share the view and the patterns of the svg above. -->
+          <svg class="backdrop" viewBox="-440 0 1000 264" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+            <g mask="url(#grid-fade)">
+              <rect class="grid-scroll" x="-460" y="0" width="1100" height="264" fill="url(#grid)" />
+            </g>
+            <line class="now" x1="440" y1="0" x2="440" y2="264" />
+            <line class="limit release" x1="-440" y1="104" x2="560" y2="104" />
+            <line class="limit hold" x1="-440" y1="200" x2="560" y2="200" />
+          </svg>
+          <canvas aria-hidden="true"></canvas>
+          <svg viewBox="-440 0 1000 264" preserveAspectRatio="xMaxYMid slice" aria-hidden="true">
+            <defs>
+              <!-- Square cells a twentieth of a ratio tall. Its lines run
+                   through the hold and release lines. -->
+              <pattern id="grid" x="7.5" y="7.5" width="48" height="48" patternUnits="userSpaceOnUse">
+                <path class="grid" d="M0 0.5H48M0.5 0V48" />
+              </pattern>
+              <!-- The grid fades out where the page's column ends. -->
+              <linearGradient id="grid-edge" gradientUnits="userSpaceOnUse" x1="496" y1="0" x2="560" y2="0">
+                <stop offset="0" stop-color="#fff" />
+                <stop offset="1" stop-color="#000" />
+              </linearGradient>
+              <mask id="grid-fade" maskUnits="userSpaceOnUse" x="-440" y="0" width="1000" height="264">
+                <rect x="-440" y="0" width="1000" height="264" fill="url(#grid-edge)" />
+              </mask>
+              <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" class="fade-top" />
+                <stop offset="1" class="fade-bottom" />
+              </linearGradient>
+              <linearGradient id="fade-held" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" class="held-top" />
+                <stop offset="1" class="held-bottom" />
+              </linearGradient>
+            </defs>
+
+            <g class="scale">
+              <text x="560" y="95" text-anchor="end">release <tspan class="limit-value">1.1</tspan></text>
+              <text x="560" y="217" text-anchor="end">hold <tspan class="limit-value">1.0</tspan></text>
+            </g>
+
+            <!-- The past, drawn up to the head. It scrolls left as time goes. -->
+            <g class="past" transform="translate(440 0)">
+              <path class="area" />
+              <path class="area held" />
+              <path class="line" />
+              <path class="line held" />
+              <path class="line freeleech" />
+              <g class="downloads"></g>
+              <g class="events"></g>
+            </g>
+            <g class="head" transform="translate(440 142)">
+              <circle class="ring" r="9" />
+              <circle class="core" r="4.5" />
+              <!-- The ratio right now, riding above the head. It reaches right,
+                   where the line hasn't been yet. -->
+              <text class="ratio" x="-4" y="-17">1.06</text>
+            </g>
+          </svg>
+        </figure>
+      </div>
+
+      <section class="how" aria-labelledby="how-title">
+        <h2 id="how-title">How it works</h2>
+        <!-- The icons are Lucide's, as in the app. Its license is in lucide-license.txt. -->
+        <ol class="steps">
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            <h3>Watch</h3>
+            <p>trakarr follows qBittorrent and works out each tracker's ratio from what its torrents have uploaded and downloaded.</p>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" />
+              <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" />
+              <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" />
+              <path
+                d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"
+              />
+            </svg>
+            <h3>Hold</h3>
+            <p>Below your hold line, that tracker's downloads are stopped or throttled, and seeding carries on.</p>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <h3>Release</h3>
+            <p>Seeding brings the ratio back up, and past your release line the downloads go on.</p>
+          </li>
+        </ol>
+      </section>
+    </main>
+
+    <script>
+      // The brand's mark is inlined so the animation in assets/logo.css can
+      // reach its parts. Where fetch can't read it, as from file://, the <img>
+      // stays, still.
+      {
+        const mark = document.querySelector(".brand .logo");
+        fetch(mark.src)
+          .then((response) => (response.ok ? response.text() : Promise.reject()))
+          .then((svg) => mark.replaceWith(new DOMParser().parseFromString(svg, "image/svg+xml").documentElement))
+          .catch(() => {});
+      }
+    </script>
+
+    <script>
+      // The chart's ratio, simulated as a tracker account. Every torrent grabbed
+      // shows as a line with its name. While one downloads the ratio only falls,
+      // and while nothing does, seeding only raises it, past the release line
+      // and on up. Downloads are held the moment it drops below 1.0, wait in the
+      // queue while it's held, and resume once seeding brings it past 1.1. On a
+      // freeleech downloads don't count, so the ratio holds still, the chart
+      // speeds up and the line burns.
+      const chart = document.querySelector(".chart");
+      const past = chart.querySelector(".past");
+      const grid = chart.querySelector(".grid-scroll");
+      const head = chart.querySelector(".head");
+      const ratioLabel = chart.querySelector(".ratio");
+      const [area, heldArea] = chart.querySelectorAll(".area");
+      const [line, heldLine, freeLine] = chart.querySelectorAll(".line");
+      const canvas = chart.querySelector("canvas");
+      const downloadLayer = chart.querySelector(".downloads");
+      const eventLayer = chart.querySelector(".events");
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+
+      const HOLD = 1;
+      const RELEASE = 1.1;
+      // Seeding eases off toward this, so the line stays in view.
+      const CEILING = 1.155;
+      // The account's downloaded size in GiB. Every step brings it back to this,
+      // so a torrent of a given size always moves the ratio the same.
+      const ACCOUNT = 100;
+      // The share of a download that's uploaded back to the swarm as it runs.
+      const SHARE = 0.08;
+      // The least time between two names on the same row, enough for one to
+      // clear the last.
+      const GAP = 2.85;
+      // On a freeleech the names take two rows, the second one ROW px lower, so
+      // they can come twice as often. The least time between any two of them
+      // is enough for a line to pass clear of the other row's name, at half
+      // its widest and some to spare.
+      const CLOSE = 1.45;
+      const ROW = 18;
+      // How fast the chart plays while a download runs and while only seeding
+      // does, against the plain pace. The scroll and the ratio take it together,
+      // so the whole chart is quick on downloads and slow on seeding.
+      const DOWNLOAD_TEMPO = 1.96;
+      const SEED_TEMPO = 0.75;
+      // A freeleech runs faster than any download.
+      const FREELEECH_TEMPO = 2.8;
+      // How far the flames reach above the line, in px, and how much of that they
+      // reach below it. A taller one now and then goes past the first.
+      const FLAME_HEIGHT = 34;
+      const FLAME_BELOW = 0.22;
+      // How wide a tongue of flame is, in px, about. A line's are fine, where a
+      // bar's are more than twice that.
+      const FLAME_TONGUE = 3.5;
+      // Pixels per second at the plain pace.
+      const SPEED = 72;
+      const round = (value) => Math.round(value * 10) / 10;
+      const xOf = (time) => round(time * SPEED);
+      const yOf = (ratio) => round(200 - (ratio - HOLD) * 960);
+      const between = (min, max) => min + Math.random() * (max - min);
+      // Roughly normal, with a spread of one.
+      const noise = () => (Math.random() + Math.random() + Math.random() - 1.5) * 2;
+      const exponential = () => -Math.log(1 - Math.random());
+      const pick = (list) => list[Math.floor(Math.random() * list.length)];
+      const pad = (number) => String(number).padStart(2, "0");
+
+      const sim = {
+        time: -14,
+        ratio: 1.08,
+        held: false,
+        // Whether a download moved bytes in the last step.
+        active: false,
+        // A freeleech in progress, and when the next one may start and this one
+        // ends. Downloads on it don't count, so the ratio holds where it was.
+        free: false,
+        freeAt: Infinity,
+        freeUntil: 0,
+        // The tempo of the moment, easing between the two.
+        tempo: SEED_TEMPO,
+        // The torrents grabbed and not finished, held ones included.
+        queue: [],
+        // Seeding, in GiB a second: a base rate that wanders, leecher bursts
+        // that fade, and the demand for what just finished.
+        seed: 1.8,
+        seedTarget: 1.8,
+        seedUntil: 0,
+        burst: 0,
+        burstAt: -12,
+        fresh: 0,
+        grabAfter: -13,
+        // When each row of names got its last one.
+        rows: [-99, -99],
+        heldAt: -14,
+        // Episodes still to come in the run, and their shared tags.
+        batch: 0,
+        tags: null,
+        season: 1 + Math.floor(Math.random() * 3),
+        episode: Math.floor(between(3, 40)),
+      };
+      // Each point keeps whether the downloads were held from there on, and
+      // whether it was a freeleech.
+      const points = [{ time: sim.time, ratio: sim.ratio, held: false, free: false }];
+      const events = [];
+      const grabs = [];
+      // The stretch of the line that burns, from where the freeleech began to
+      // where it ended, or to the head while it runs.
+      let burn = null;
+      let live = false;
+      let lastFrame = null;
+      let frame;
+      // The flames on the canvas: undefined until a freeleech needs them, null
+      // where WebGL2 can't draw them.
+      let flames;
+
+      // Seasons count up to a handful, then it's another show.
+      function newSeason() {
+        sim.season = (sim.season % 6) + 1;
+        sim.episode = 0;
+      }
+
+      // A release name, never a real title: the code comes first, then the
+      // quality, the source and the codec or extension it usually ends in.
+      // Sizes are in GiB and paces in GiB a second, bigger torrents slower.
+      function newTorrent() {
+        // With room in the ratio they grab bigger: movies and whole seasons.
+        // After a long while without a hold they go for those alone, and
+        // bigger still, as whatever was waiting for the ratio comes in.
+        const clamp = (value) => Math.min(1, Math.max(0, value));
+        const heft = clamp((sim.ratio - 1.08) / 0.07);
+        const hunger = clamp((sim.time - sim.heldAt - 12) / 10);
+        const roll = Math.random();
+        const episode = sim.batch > 0 ? hunger < 0.5 : roll < (0.6 - heft * 0.3) * (1 - hunger);
+        if (episode) {
+          // A season coming in arrives as a run of episodes with the same tags.
+          if (!sim.tags) {
+            if (Math.random() < 0.35) sim.batch = 1 + Math.floor(between(2, 5));
+            if (Math.random() < 0.3) newSeason();
+            const quality = pick(["720p", "1080p", "1080p", "1080p", "2160p"]);
+            const source = quality === "2160p" ? pick(["WEB-DL", "WEB-DL", "BluRay"]) : pick(["WEB-DL", "WEBRip", "HDTV", "BluRay"]);
+            sim.tags = { quality, source, tail: pick(["mkv", "mkv", "mp4", "x264", "x265"]) };
+          }
+          const { quality, source, tail } = sim.tags;
+          if (sim.batch > 0) sim.batch--;
+          if (!sim.batch) sim.tags = null;
+          if (sim.episode >= 99) newSeason();
+          sim.episode++;
+          return {
+            name: "…S" + pad(sim.season) + "E" + pad(sim.episode) + "." + quality + "." + source + "." + tail,
+            size: quality === "2160p" ? between(10, 18) : quality === "720p" ? between(2.5, 6) : between(5, 10),
+            pace: quality === "2160p" ? between(9, 14) : between(10, 18),
+          };
+        }
+        // A run that's interrupted doesn't pick up later.
+        sim.batch = 0;
+        sim.tags = null;
+        const quality = pick(["720p", "1080p", "1080p", "2160p"]);
+        const source = quality === "2160p" ? pick(["WEB-DL", "BluRay", "BluRay"]) : pick(["WEB-DL", "WEBRip", "BluRay"]);
+        const grow = 1 + hunger * 0.5;
+        if (roll < 0.87 - heft * 0.25) {
+          const tail = pick(["mkv", "mkv", "mp4", "x264", "x265"]);
+          return {
+            name: "…" + Math.floor(between(1990, 2026)) + "." + quality + "." + source + "." + tail,
+            size: between(10, 20) * grow,
+            pace: between(8, 14),
+          };
+        }
+        // A whole season is a folder, so it ends in a codec and not an extension.
+        const season = "…S" + pad(sim.season) + "." + quality + "." + source + "." + pick(["x264", "x265"]);
+        newSeason();
+        return { name: season, size: between(16, 28) * grow, pace: between(7, 12) };
+      }
+
+      function svgElement(tag, attributes) {
+        const element = document.createElementNS("http://www.w3.org/2000/svg", tag);
+        for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
+        return element;
+      }
+
+      function addEvent(time, hold) {
+        const group = svgElement("g", {
+          class: "event " + (hold ? "hold" : "release") + (live ? " new" : ""),
+          transform: "translate(" + xOf(time) + " " + yOf(hold ? HOLD : RELEASE) + ")",
+        });
+        if (live) group.append(svgElement("circle", { class: "pulse", r: 4 }));
+        const label = svgElement("text", { x: -10, y: hold ? 21 : -12, "text-anchor": "end" });
+        label.textContent = hold ? "Held" : "Released";
+        group.append(svgElement("circle", { class: "mark", r: 4 }), label);
+        eventLayer.append(group);
+        events.push({ time, hold, group });
+      }
+
+      // The name rides at the top, on the first row or the second, and a dotted
+      // line runs down to the curve.
+      function addDownload(time, ratio, name, row) {
+        const group = svgElement("g", {
+          class: "download" + (live ? " new" : ""),
+          transform: "translate(" + xOf(time) + " 0)",
+        });
+        const label = svgElement("text", { y: 12 + row * ROW, "text-anchor": "middle" });
+        label.textContent = name;
+        group.append(
+          svgElement("line", { class: "stem", y1: 20 + row * ROW, y2: yOf(ratio) }),
+          svgElement("circle", { class: "dot", cy: yOf(ratio), r: 3 }),
+          label,
+        );
+        downloadLayer.append(group);
+        grabs.push({ time, group });
+      }
+
+      function grab() {
+        const torrent = newTorrent();
+        // The curve passes through the grab's dot exactly.
+        if (points.at(-1).time < sim.time) points.push({ time: sim.time, ratio: sim.ratio, held: sim.held, free: sim.free });
+        // The second row is for a freeleech, and goes to whichever row waited longer.
+        const row = sim.free && sim.rows[1] < sim.rows[0] ? 1 : 0;
+        addDownload(sim.time, sim.ratio, torrent.name, row);
+        sim.queue.push({ ...torrent, left: torrent.size, speed: torrent.pace, target: torrent.pace, until: 0 });
+        sim.rows[row] = sim.time;
+        sim.grabAfter = nextGrab();
+      }
+
+      // When the next grab may come: no name lands on the last one, and on a
+      // freeleech a row that's free takes the next even if the other just got one.
+      function nextGrab() {
+        const last = Math.max(...sim.rows);
+        return sim.free ? Math.max(last + CLOSE, Math.min(...sim.rows) + GAP) : last + GAP;
+      }
+
+      // How long a grab takes to come once it may, on average. Grabs come
+      // quicker the higher the ratio is, and in a run they follow each other
+      // right away.
+      function grabEvery() {
+        // Free downloads come as fast as the names can fit.
+        if (sim.free) return 0.25;
+        if (sim.batch > 0) return 0.25;
+        const room = Math.min(1, Math.max(0, (1.14 - sim.ratio) / 0.11));
+        return 0.4 + room * 4;
+      }
+
+      // Brings what's left to download down to a few GiB, so that resuming, or
+      // the end of a freeleech, isn't a plunge.
+      function trimQueue() {
+        const cap = between(3, 9);
+        const left = sim.queue.reduce((total, torrent) => total + torrent.left, 0);
+        if (left > cap) for (const torrent of sim.queue) torrent.left *= cap / left;
+      }
+
+      // A freeleech starts with a grab, so the first download is the one that
+      // doesn't pull the ratio down. The line burns from there.
+      function startFreeleech() {
+        sim.free = true;
+        sim.freeUntil = sim.time + between(12, 16);
+        sim.grabAfter = nextGrab();
+        // The grab put a point right here. The line's freeleech starts from it.
+        points.at(-1).free = true;
+        burn = { from: sim.time, to: null, ratio: sim.ratio };
+      }
+
+      function endFreeleech() {
+        sim.free = false;
+        sim.grabAfter = nextGrab();
+        sim.freeAt = sim.time + between(15, 25);
+        burn.to = sim.time;
+        points.push({ time: sim.time, ratio: sim.ratio, held: false, free: false });
+        trimQueue();
+      }
+
+      // Plays some seconds of the chart. `sim.time` is its own clock, the one
+      // the scroll and the ratio follow, and it runs at the tempo.
+      function advance(seconds) {
+        for (let left = seconds; left > 1e-9; left -= 0.02) {
+          const real = Math.min(0.02, left);
+          const downloading = !sim.held && sim.queue.length > 0;
+          const target = sim.free ? FREELEECH_TEMPO : downloading ? DOWNLOAD_TEMPO : SEED_TEMPO;
+          sim.tempo += (target - sim.tempo) * (real / 0.15);
+          const step = real * sim.tempo;
+          if (sim.free && sim.time >= sim.freeUntil) endFreeleech();
+          // Nothing new comes in while it's held, so a line on the chart always
+          // means the ratio falls from there, except on a freeleech. One that's
+          // due, with the ratio in view and not near a hold, takes the first
+          // grab that may come instead of waiting for one by chance.
+          const due = !sim.free && sim.time >= sim.freeAt && sim.ratio > 1.02 && sim.ratio < 1.13;
+          if (!sim.held && sim.time >= sim.grabAfter && (due || Math.random() < step / grabEvery())) {
+            grab();
+            if (due) startFreeleech();
+          }
+
+          if (sim.time >= sim.seedUntil) {
+            sim.seedTarget = between(0.45, 3);
+            sim.seedUntil = sim.time + between(0.25, 1.3);
+          }
+          sim.seed += (sim.seedTarget - sim.seed) * (step / 0.25) + 1.5 * Math.sqrt(step) * noise();
+          sim.seed = Math.max(sim.seed, 0.6);
+          if (sim.time >= sim.burstAt) {
+            sim.burst = between(1.2, 4.5);
+            sim.burstAt = sim.time + 0.5 + exponential() * 1.8;
+          }
+          sim.burst *= Math.exp(-step / 0.5);
+          sim.fresh *= Math.exp(-step / 1.6);
+          const room = Math.max(0, Math.min(1, (CEILING - sim.ratio) / (CEILING - 1.12)));
+          const seeding = (sim.seed + sim.burst + sim.fresh) * room;
+
+          // Held downloads wait where they are. The rest each run at a pace
+          // that keeps changing, and never below what outpaces seeding.
+          let downloaded = 0;
+          if (!sim.held && sim.queue.length) {
+            let rate = 0;
+            for (const torrent of sim.queue) {
+              if (sim.time >= torrent.until) {
+                torrent.target = torrent.pace * (Math.random() < 0.15 ? 0.15 : between(0.55, 1.4));
+                torrent.until = sim.time + between(0.3, 1.2);
+              }
+              torrent.speed += (torrent.target - torrent.speed) * (step / 0.2) + torrent.pace * 0.12 * Math.sqrt(step) * noise();
+              torrent.speed = Math.max(torrent.speed, 0.5);
+              rate += torrent.speed;
+            }
+            const boost = Math.max(1, (seeding * 1.15) / ((sim.ratio - SHARE) * rate));
+            for (const torrent of sim.queue) {
+              const got = Math.min(torrent.left, torrent.speed * boost * step);
+              torrent.left -= got;
+              downloaded += got;
+              // What just finished draws leechers for a few seconds.
+              if (torrent.left <= 0) sim.fresh += 0.6 + torrent.size * 0.22;
+            }
+            sim.queue = sim.queue.filter((torrent) => torrent.left > 0);
+          }
+
+          const before = sim.ratio;
+          // The ratio is what's uploaded over what's downloaded. On a freeleech
+          // it holds still: what's downloaded doesn't count, and it gets no
+          // lift from seeding either.
+          if (!sim.free) {
+            sim.ratio = (before * ACCOUNT + seeding * step + SHARE * downloaded) / (ACCOUNT + downloaded);
+            // A download's last bytes can't lift it.
+            if (downloaded > 0) sim.ratio = Math.min(sim.ratio, before);
+          }
+          sim.active = downloaded > 0;
+          sim.time += step;
+          const limit = sim.held ? RELEASE : HOLD;
+          if (sim.held ? sim.ratio > limit : sim.ratio < limit) {
+            const time = sim.time - (step * (sim.ratio - limit)) / (sim.ratio - before);
+            sim.held = !sim.held;
+            if (sim.held) sim.heldAt = time;
+            else if (Math.random() < 0.8) {
+              // Most of the time little is left when downloads resume, so a
+              // hold rarely follows another right away.
+              trimQueue();
+            }
+            // It stops right on the line and turns from there.
+            sim.ratio = limit;
+            sim.active = false;
+            points.push({ time, ratio: limit, held: sim.held, free: false });
+            addEvent(time, sim.held);
+          }
+          if (sim.time - points.at(-1).time >= 0.03) points.push({ time: sim.time, ratio: sim.ratio, held: sim.held, free: sim.free });
+        }
+        while (points.length > 2 && points[1].time < sim.time - 14) points.shift();
+        while (events.length && events[0].time < sim.time - 14) events.shift().group.remove();
+        while (grabs.length && grabs[0].time < sim.time - 14) grabs.shift().group.remove();
+        if (burn && burn.to !== null && burn.to < sim.time - 14) burn = null;
+      }
+
+      // The stretches of the curve where `flag` was on, each from a point to the
+      // next as a stroke, and with the fill below it.
+      function runsOf(all, flag) {
+        let stroke = "";
+        let fill = "";
+        let run = "";
+        let runStart;
+        for (let index = 1; index < all.length; index++) {
+          const from = all[index - 1];
+          const to = all[index];
+          if (from[flag]) {
+            if (!run) {
+              runStart = xOf(from.time);
+              run = "M" + xOf(from.time) + " " + yOf(from.ratio);
+            }
+            run += "L" + xOf(to.time) + " " + yOf(to.ratio);
+          }
+          if (run && (index === all.length - 1 || !to[flag])) {
+            stroke += run;
+            fill += run + "L" + xOf(to.time) + " 264L" + runStart + " 264Z";
+            run = "";
+          }
+        }
+        return { stroke, fill };
+      }
+
+      function draw() {
+        const all = points.concat({ time: sim.time, ratio: sim.ratio, held: sim.held, free: sim.free });
+        let path = "";
+        for (let index = 0; index < all.length; index++) path += (index ? "L" : "M") + xOf(all[index].time) + " " + yOf(all[index].ratio);
+        const held = runsOf(all, "held");
+        line.setAttribute("d", path);
+        area.setAttribute("d", path + "L" + xOf(sim.time) + " 264L" + xOf(all[0].time) + " 264Z");
+        heldLine.setAttribute("d", held.stroke);
+        heldArea.setAttribute("d", held.fill);
+        freeLine.setAttribute("d", runsOf(all, "free").stroke);
+        past.setAttribute("transform", "translate(" + round(440 - sim.time * SPEED) + " 0)");
+        grid.setAttribute("transform", "translate(" + -round((sim.time * SPEED) % 48) + " 0)");
+        head.setAttribute("transform", "translate(440 " + yOf(sim.ratio) + ")");
+        // Cut, not rounded, so it reads 1.10 only once it's released.
+        const ratio = (Math.floor(sim.ratio * 100) / 100).toFixed(2);
+        if (ratioLabel.textContent !== ratio) ratioLabel.textContent = ratio;
+        const state = sim.held ? "held" : sim.free ? "freeleech" : sim.active ? "downloading" : "seeding";
+        if (chart.dataset.state !== state) chart.dataset.state = state;
+        drawFlames();
+      }
+
+      // Sets the stretch that burns on the canvas. The svg keeps one unit to a
+      // pixel and its right side, so the canvas's right edge is x = 560 and the
+      // head sits 120 px in from it.
+      function drawFlames() {
+        if (!burn) {
+          flames?.clear();
+          return;
+        }
+        if (flames === undefined) flames = ignite(canvas);
+        if (!flames) return;
+        const head = canvas.clientWidth - 120;
+        const left = head - (sim.time - burn.from) * SPEED;
+        const right = head - (sim.time - (burn.to ?? sim.time)) * SPEED;
+        flames.draw((left + right) / 2, 264 - yOf(burn.ratio), (right - left) / 2);
+      }
+
+      function animate(timestamp) {
+        if (lastFrame !== null) advance(Math.min((timestamp - lastFrame) / 1000, 0.1));
+        lastFrame = timestamp;
+        draw();
+        frame = requestAnimationFrame(animate);
+      }
+
+      function sync() {
+        cancelAnimationFrame(frame);
+        lastFrame = null;
+        if (!reducedMotion.matches && !document.hidden) frame = requestAnimationFrame(animate);
+      }
+
+      // The flames come from the app's (app/src/components/Flames.tsx), drawn with WebGL2 on
+      // the canvas behind the svg: red tongues that leap from a box's edges, a
+      // glow along its outline and sparks. A freeleech's line doesn't move in
+      // ratio, so what burns is a flat box as long as the stretch and as thick
+      // as the line. The canvas is sized by the page, and the script only says
+      // where the box is. Without WebGL2 the line still turns red.
+      // The app's flames suit a bar, but on a line they'd be a thick band, so
+      // this shader is a finer variation of them: narrow tongues that taper to
+      // a point, apart from each other and of different heights, with a taller
+      // one now and then, and far less fire below the line than above it. And
+      // what's past the tongues and the sparks isn't drawn at all.
+      const HOT = [1, 0.3, 0.1];
+      const RED = [1, 0.16, 0.05];
+
+      function ignite(canvas) {
+        const gl = canvas.getContext("webgl2", { premultipliedAlpha: true, antialias: false, depth: false, stencil: false });
+        const program = gl && link(gl);
+        if (!gl || !program) return null;
+
+        gl.useProgram(program);
+        const at = (name) => gl.getUniformLocation(program, name);
+        const dpr = at("uDpr");
+        const box = at("uBox");
+        const time = at("uTime");
+        // The line's ends are round, a pixel of radius.
+        gl.uniform1f(at("uRadius"), 1);
+        gl.uniform1f(at("uHeight"), FLAME_HEIGHT);
+        gl.uniform1f(at("uBelow"), FLAME_BELOW);
+        gl.uniform1f(at("uTongue"), FLAME_TONGUE);
+        gl.uniform3f(at("uColor"), ...RED);
+        gl.uniform3f(at("uHot"), ...HOT);
+        gl.uniform1f(at("uSeed"), Math.random() * 1000);
+        const born = performance.now();
+        let lit = false;
+
+        return {
+          // The box's center and half size in px, from the canvas's left and
+          // bottom, as GL counts.
+          draw(x, y, halfWidth) {
+            const scale = Math.min(window.devicePixelRatio, 2);
+            const width = Math.round(canvas.clientWidth * scale);
+            const height = Math.round(canvas.clientHeight * scale);
+            if (canvas.width !== width || canvas.height !== height) {
+              canvas.width = width;
+              canvas.height = height;
+            }
+            gl.viewport(0, 0, width, height);
+            gl.uniform1f(dpr, scale);
+            gl.uniform4f(box, x, y, halfWidth, 1);
+            gl.uniform1f(time, reducedMotion.matches ? 0 : (performance.now() - born) / 1000);
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            gl.drawArrays(gl.TRIANGLES, 0, 3);
+            lit = true;
+          },
+          clear() {
+            if (!lit) return;
+            gl.clearColor(0, 0, 0, 0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+            lit = false;
+          },
+        };
+      }
+
+      function link(gl) {
+        const program = gl.createProgram();
+        for (const [type, source] of [
+          [gl.VERTEX_SHADER, VERTEX],
+          [gl.FRAGMENT_SHADER, FRAGMENT],
+        ]) {
+          const shader = gl.createShader(type);
+          gl.shaderSource(shader, source);
+          gl.compileShader(shader);
+          gl.attachShader(program, shader);
+          gl.deleteShader(shader);
+        }
+        gl.linkProgram(program);
+        if (gl.getProgramParameter(program, gl.LINK_STATUS)) return program;
+        console.warn("The flames couldn't draw:", gl.getProgramInfoLog(program));
+        gl.deleteProgram(program);
+        return null;
+      }
+
+      // One triangle that covers the whole canvas, with no buffers.
+      const VERTEX = `#version 300 es
+void main() {
+  vec2 corner = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+  gl_Position = vec4(corner * 2.0 - 1.0, 0.0, 1.0);
+}`;
+
+      // Heat is highest along the top and bottom edges and fades as the flames
+      // leave them, tapering to a point and broken up by noise that scrolls away
+      // from the edge. It glows around the rest of the outline too. Colors run
+      // from dark red through the flame color to red-orange where it's hottest.
+      // Output is premultiplied.
+      // Past the tallest tongue and the sparks there's nothing to draw, so the
+      // rest of a long canvas costs nothing.
+      const FRAGMENT = `#version 300 es
+precision highp float;
+
+uniform float uDpr;
+uniform vec4 uBox;
+uniform float uRadius;
+uniform float uHeight;
+uniform float uBelow;
+uniform float uTongue;
+uniform float uTime;
+uniform vec3 uColor;
+uniform vec3 uHot;
+uniform float uSeed;
+
+out vec4 outColor;
+
+float hash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  float a = hash(i);
+  float b = hash(i + vec2(1.0, 0.0));
+  float c = hash(i + vec2(0.0, 1.0));
+  float d = hash(i + vec2(1.0, 1.0));
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+float fbm(vec2 p) {
+  float sum = 0.0;
+  float amp = 0.5;
+  for (int i = 0; i < 5; i++) {
+    sum += amp * noise(p);
+    p = p * 2.02 + vec2(17.0, 9.0);
+    amp *= 0.5;
+  }
+  return sum;
+}
+
+// Distance to a rounded box, negative inside.
+float roundedBox(vec2 p, vec2 size, float r) {
+  vec2 q = abs(p) - size + r;
+  return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r;
+}
+
+void main() {
+  vec2 p = gl_FragCoord.xy / uDpr;
+  vec2 local = p - uBox.xy;
+  vec2 size = uBox.zw;
+  if (abs(local.x) > size.x + 8.0 || local.y > size.y + uHeight * 1.5 + 8.0 || local.y < -size.y - uHeight * uBelow * 1.8 - 8.0) {
+    outColor = vec4(0.0);
+    return;
+  }
+  float edge = roundedBox(local, size, uRadius);
+  // How far past the nearer of the top and bottom edges. The bottom's flames
+  // burn a pattern of their own, not the top's mirrored.
+  float past = abs(local.y) - size.y;
+  float side = local.y < 0.0 ? 37.0 : 0.0;
+
+  // Flames over both edges, thinning out at both ends. Each tongue reaches
+  // its own height, which drifts along the edge, and a slower, wider swell
+  // lifts a few of them higher.
+  float ends = 1.0 - smoothstep(size.x - uRadius - 4.0, size.x + 2.0, abs(local.x));
+  float flicker = 0.45 + 1.1 * noise(vec2(p.x / (uTongue * 7.0) + uSeed + side, uTime * 0.6));
+  float reach = uHeight * flicker * (local.y < 0.0 ? uBelow : 1.0) * (0.25 + 0.9 * pow(noise(vec2(p.x / uTongue + uSeed + side, uTime * 0.8)), 1.3));
+  vec2 q = vec2(p.x / (uTongue * 0.625) + uSeed + side, past / (uTongue * 0.5) - uTime * 3.2);
+  float sway = fbm(q * 0.5 + vec2(0.0, -uTime));
+  float n = fbm(q + vec2(sway * 2.0, 0.0));
+  float rise = max(past, 0.0) / reach;
+  // Hottest along the edge, fading and narrowing to a point towards the tips.
+  float body = (n - 0.05) * pow(max(1.0 - rise, 0.0), 1.5) * 1.7 + 0.3 * exp(-max(past, 0.0) / 1.5);
+  float flame = past > -1.0 ? smoothstep(0.15, 0.8, body) * ends : 0.0;
+
+  // The outline glows all around, brightest where it touches the content.
+  float outside = max(edge, 0.0);
+  float glow = exp(-outside / 3.0) * 0.55 + exp(-outside) * 0.45;
+
+  float heat = clamp(flame + glow * (0.75 + 0.25 * n), 0.0, 1.0);
+
+  // Sparks rise from the top edge and fade out, each time from somewhere new.
+  float sparks = 0.0;
+  for (int i = 0; i < 10; i++) {
+    float seed = float(i) + uSeed;
+    float t = uTime * (0.35 + 0.35 * hash(vec2(seed, 1.0))) + hash(vec2(seed, 2.0));
+    float life = fract(t);
+    float x = uBox.x + (hash(vec2(seed, floor(t))) * 2.0 - 1.0) * (size.x - uRadius);
+    x += sin(life * 9.0 + seed) * 2.0;
+    float y = uBox.y + size.y + life * uHeight * 1.4;
+    vec2 s = p - vec2(x, y);
+    sparks += (1.0 - life) * exp(-dot(s, s) / 0.9);
+  }
+  sparks = min(sparks, 1.0);
+
+  vec3 color = mix(vec3(0.35, 0.02, 0.01), uColor, smoothstep(0.15, 0.6, heat));
+  color = mix(color, uHot, smoothstep(0.9, 1.0, heat));
+  float alpha = smoothstep(0.02, 0.7, heat);
+  vec3 spark = vec3(1.0, 0.45, 0.2) * sparks;
+  outColor = vec4(color * alpha * (1.0 - sparks) + spark, alpha + sparks * (1.0 - alpha));
+}`;
+
+      // The chart opens with its history full, a hold and its release in view
+      // and a download falling right now. That's also the frame reduced motion
+      // keeps.
+      const settled = () => {
+        const last = events.at(-1);
+        return (
+          sim.time > 0 &&
+          sim.active &&
+          !sim.held &&
+          !sim.free &&
+          grabs.length >= 3 &&
+          last?.hold === false &&
+          sim.time - last.time > 3 &&
+          sim.time - last.time < 9
+        );
+      };
+      do advance(0.05);
+      while (sim.time < 120 && !settled());
+      live = true;
+      // The first freeleech comes a few seconds after the page opens, and
+      // never in the frame reduced motion keeps.
+      if (!reducedMotion.matches) {
+        sim.freeAt = sim.time + between(4, 8);
+        flames = ignite(canvas);
+      }
+      draw();
+
+      reducedMotion.addEventListener("change", sync);
+      document.addEventListener("visibilitychange", sync);
+      sync();
+
+      // Copies the install command. Where the clipboard refuses, the command is
+      // selected so it can be copied by hand.
+      const button = document.querySelector("[data-copy]");
+      const label = button.querySelector(".label");
+      const command = document.getElementById("command");
+      let reset;
+      const show = (state, text) => {
+        if (state) button.dataset.state = state;
+        else delete button.dataset.state;
+        label.textContent = text;
+      };
+      button.addEventListener("click", async () => {
+        clearTimeout(reset);
+        try {
+          await navigator.clipboard.writeText(command.textContent);
+          show("copied", "Copied");
+        } catch {
+          getSelection().selectAllChildren(command);
+          show("failed", "Copy failed");
+        }
+        reset = setTimeout(() => show(null, "Copy"), 2000);
+      });
+    </script>
+  </body>
+</html>
