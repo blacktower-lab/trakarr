@@ -1,7 +1,8 @@
 name: Pages
 
-# Publishes the landing page in site/ as it is, with no build, and the shared
-# assets/ next to it, where the page's ../assets/ links resolve.
+# Publishes the landing page in site/ with no build, and the shared assets/ next
+# to it. In the repo the page reaches them as ../assets/, but on Pages it sits at
+# the site's root, so those links are rewritten to assets/.
 on:
   push:
     branches: [main]
@@ -36,6 +37,7 @@ jobs:
           mkdir _site
           cp -R site/. _site/
           cp -R assets _site/assets
+          sed -i 's#\.\./assets/#assets/#g' _site/index.html
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
