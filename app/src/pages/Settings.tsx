@@ -84,7 +84,7 @@ export function Settings() {
         </div>
       )
     ) : (
-      <Card>{built ? <Pending error={settings.error} /> : <Empty icon={Wrench} title={t("Not in this mockup yet")} />}</Card>
+      <Card>{built ? <Pending error={settings.error} /> : <Empty icon={Wrench} title={t("Coming soon")} />}</Card>
     );
 
   return (
