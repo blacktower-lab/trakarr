@@ -5,6 +5,7 @@ import {
   ChevronsUpDown,
   ChevronUp,
   CircleCheck,
+  CircleQuestionMark,
   Coins,
   History,
   LayoutDashboard,
@@ -395,13 +396,13 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
                   <SortableColumn id="name" isRowHeader width="1fr" minWidth={260}>
                     Tracker
                   </SortableColumn>
-                  <SortableColumn id="ratio" width={120}>
+                  <SortableColumn id="ratio" width={120} hint="Uploaded over downloaded">
                     Ratio
                   </SortableColumn>
-                  <SortableColumn id="downloaded" width={360}>
+                  <SortableColumn id="downloaded" width={360} hint="Downloaded against what its upload allows">
                     Downloaded
                   </SortableColumn>
-                  <SortableColumn id="buffer" width={180}>
+                  <SortableColumn id="buffer" width={180} hint="Left before the next hold or release">
                     Buffer
                   </SortableColumn>
                   <Table.Column textValue="Actions" width={72}>
@@ -552,6 +553,9 @@ interface SortableColumnProps {
   isRowHeader?: boolean;
   width: ColumnWidth;
   minWidth?: number;
+  // What the column shows, in the tooltip of a ? after its label. HeroUI's
+  // tooltips break anywhere past a line's end, so it has to fit in one.
+  hint?: string;
   children: string;
 }
 
@@ -559,7 +563,7 @@ interface SortableColumnProps {
 // of the column, so it's off and the arrow is drawn here, left of the label. The
 // sorted column points up or down, like HeroUI's does; the others show that they
 // can be sorted. All take the same room, so nothing shifts when the sort moves.
-function SortableColumn({ id, isRowHeader, width, minWidth, children }: SortableColumnProps) {
+function SortableColumn({ id, isRowHeader, width, minWidth, hint, children }: SortableColumnProps) {
   return (
     <Table.Column id={id} isRowHeader={isRowHeader} allowsSorting textValue={children} width={width} minWidth={minWidth}>
       {({ sortDirection }) => (
@@ -579,6 +583,14 @@ function SortableColumn({ id, isRowHeader, width, minWidth, children }: Sortable
               <ChevronsUpDown aria-hidden size={12} className="shrink-0 text-muted" />
             )}
             {children}
+            {hint && (
+              <Tooltip>
+                <Tooltip.Trigger aria-label={`About ${children}`}>
+                  <CircleQuestionMark aria-hidden size={12} className="text-muted" />
+                </Tooltip.Trigger>
+                <Tooltip.Content>{hint}</Tooltip.Content>
+              </Tooltip>
+            )}
           </span>
         </Table.SortableColumnHeader>
       )}
@@ -695,7 +707,7 @@ function Ratio({ totals, freeleech }: RatioProps) {
   return (
     <Tooltip>
       <Tooltip.Trigger>
-        <span className="font-medium tabular-nums">{freeleech ? "∞" : formatRatio(ratioOf(totals))}</span>
+        <span className="cursor-help font-medium tabular-nums">{freeleech ? "∞" : formatRatio(ratioOf(totals))}</span>
       </Tooltip.Trigger>
       <Tooltip.Content>
         {freeleech
@@ -715,7 +727,7 @@ function Buffer({ rule, held }: { rule: Rule; held: boolean }) {
   return (
     <Tooltip>
       <Tooltip.Trigger>
-        <span className="inline-flex items-center gap-1.5">
+        <span className="inline-flex cursor-help items-center gap-1.5">
           <Arrow size={12} strokeWidth={2.5} aria-hidden className="text-muted" />
           {bytes}
           <span className="sr-only">{held ? "to upload until release" : "to download until hold"}</span>
@@ -732,7 +744,7 @@ function FreeleechBuffer() {
   return (
     <Tooltip>
       <Tooltip.Trigger>
-        <span>Freeleech</span>
+        <span className="cursor-help">Freeleech</span>
       </Tooltip.Trigger>
       <Tooltip.Content>Downloads don't count during the freeleech</Tooltip.Content>
     </Tooltip>
