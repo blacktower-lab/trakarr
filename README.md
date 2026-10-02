@@ -23,18 +23,34 @@ It installs Node.js 24, the latest release in `/opt/trakarr` and a systemd
 service, with settings, rules and the database in `/var/lib/trakarr`. The
 dashboard is on port 7478. Run it again to update.
 
-Then connect qBittorrent in Settings, add a rule, and turn test mode off once
-its events look right.
+Then connect qBittorrent in Settings > Integrations, add a rule, and turn test
+mode off once its events look right.
 
 ## Development
 
-Needs Node.js 24.
+Needs Node.js 24 and git. Every `npm` command runs from the repository's root,
+which is an npm workspace of `server/` and `app/`.
 
 ```sh
-npm ci
-npm run dev     # the app on http://localhost:5173, the server on 7478
-npm test
-npm run build
+git clone https://github.com/blacktower-lab/trakarr.git
+cd trakarr
+npm run dev
+```
+
+`npm run dev` calls `scripts/run.sh`, which installs the dependencies if
+`node_modules` is missing and starts the server and the app together. The
+dashboard is on http://localhost:5173 and proxies `/api` to the server on port
+7478. Ctrl-C stops both, and if one crashes the other stops too. You can also
+run the script directly, from any folder.
+
+The rest, from the root as well:
+
+```sh
+npm ci                  # install the dependencies, which run.sh does by itself
+npm test                # the server's tests
+npm run build           # build the app into app/dist
+npm run dev -w server   # only the server, which restarts when its files change
+npm run dev -w app      # only the app
 ```
 
 In development, settings, rules and the database go in `config/`.
