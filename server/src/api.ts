@@ -14,6 +14,7 @@ import {
 } from "./config.ts";
 import { ConnectionError, test, type TestResult } from "./connection.ts";
 import { LEVELS, type Fields, type Level, type Log } from "./log.ts";
+import { createNtfy } from "./notify.ts";
 import { createProwlarr } from "./prowlarr.ts";
 import { createQbit } from "./qbit.ts";
 import type { EventKind, Store } from "./store.ts";
@@ -46,7 +47,7 @@ export function createApi({ config, store, log, watcher }: Deps) {
   }
 
   function tested(service: string, address: string, result: TestResult) {
-    if (result.ok) log.info("api", `Connection test to ${service} passed`, { address, version: result.version });
+    if (result.ok) log.info("api", `Connection test to ${service} passed`, { address, version: result.version ?? null });
     else log.warn("api", `Connection test to ${service} failed`, { address, error: result.message });
   }
 
@@ -196,6 +197,17 @@ export function createApi({ config, store, log, watcher }: Deps) {
     res.json(result);
   });
 
+  // Sends a real notification, since that's the only way to know it arrives.
+  api.post("/test/ntfy", async (req, res) => {
+    const { ntfy } = parseSettings({ ntfy: req.body ?? {} }, config.settings());
+    const result = await test(() =>
+      createNtfy(ntfy).publish({ title: "trakarr", message: "This is a test notification from trakarr" }),
+    );
+    if (result.ok) log.info("api", "Sent a test notification to ntfy", { address: ntfy.address, topic: ntfy.topic });
+    else log.warn("api", "Test notification to ntfy failed", { address: ntfy.address, error: result.message });
+    res.json(result);
+  });
+
   // Prowlarr's indexers and sync profiles, for the rule editor.
   api.get("/prowlarr", async (_req, res) => {
     const prowlarr = createProwlarr(config.settings().prowlarr);
@@ -255,6 +267,8 @@ function settingsChanges(old: Settings, next: Settings): Fields {
   const plain = (s: Settings): Fields => ({
     "qbittorrent.address": s.qbittorrent.address,
     "prowlarr.address": s.prowlarr.address,
+    "ntfy.address": s.ntfy.address,
+    "ntfy.topic": s.ntfy.topic,
     pollSeconds: s.pollSeconds,
     testMode: s.testMode,
     logRetentionDays: s.logRetentionDays,
@@ -262,6 +276,7 @@ function settingsChanges(old: Settings, next: Settings): Fields {
   const fields = changes(plain(old), plain(next));
   if (old.qbittorrent.apiKey !== next.qbittorrent.apiKey) fields["qbittorrent.apiKey"] = "changed";
   if (old.prowlarr.apiKey !== next.prowlarr.apiKey) fields["prowlarr.apiKey"] = "changed";
+  if (old.ntfy.token !== next.ntfy.token) fields["ntfy.token"] = "changed";
   return fields;
 }
 

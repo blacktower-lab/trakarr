@@ -58,6 +58,9 @@ const MAX_FREELEECH_HOURS = 24 * 30;
 export interface Settings {
   qbittorrent: { address: string; apiKey: string };
   prowlarr: { address: string; apiKey: string };
+  // Where trakarr sends its notifications. The token is only for a server that
+  // asks for one.
+  ntfy: { address: string; topic: string; token: string };
   pollSeconds: number;
   testMode: boolean;
   // Days a log line is kept. Events stay.
@@ -67,6 +70,7 @@ export interface Settings {
 const DEFAULT_SETTINGS: Settings = {
   qbittorrent: { address: "", apiKey: "" },
   prowlarr: { address: "", apiKey: "" },
+  ntfy: { address: "", topic: "", token: "" },
   pollSeconds: 5,
   // A fresh install only logs what it would do.
   testMode: true,
@@ -114,10 +118,11 @@ export function openConfig(dir = CONFIG_DIR) {
 export type Config = ReturnType<typeof openConfig>;
 
 // What the API shows of the settings: secrets only say whether they're set.
-export function publicSettings({ qbittorrent, prowlarr, pollSeconds, testMode, logRetentionDays }: Settings) {
+export function publicSettings({ qbittorrent, prowlarr, ntfy, pollSeconds, testMode, logRetentionDays }: Settings) {
   return {
     qbittorrent: { address: qbittorrent.address, hasApiKey: qbittorrent.apiKey !== "" },
     prowlarr: { address: prowlarr.address, hasApiKey: prowlarr.apiKey !== "" },
+    ntfy: { address: ntfy.address, topic: ntfy.topic, hasToken: ntfy.token !== "" },
     pollSeconds,
     testMode,
     logRetentionDays,
@@ -130,6 +135,7 @@ export function parseSettings(input: unknown, current: Settings): Settings {
   const s = object(input, "settings");
   const qbit = object(s.qbittorrent ?? {}, "qbittorrent");
   const prowlarr = object(s.prowlarr ?? {}, "prowlarr");
+  const ntfy = object(s.ntfy ?? {}, "ntfy");
   const pollSeconds = s.pollSeconds === undefined ? current.pollSeconds : whole(s.pollSeconds, "pollSeconds", 1, 300);
   const logRetentionDays =
     s.logRetentionDays === undefined ? current.logRetentionDays : whole(s.logRetentionDays, "logRetentionDays", 1, 365);
@@ -141,6 +147,11 @@ export function parseSettings(input: unknown, current: Settings): Settings {
     prowlarr: {
       address: optionalText(prowlarr.address, "prowlarr.address", current.prowlarr.address),
       apiKey: optionalText(prowlarr.apiKey, "prowlarr.apiKey", "") || current.prowlarr.apiKey,
+    },
+    ntfy: {
+      address: optionalText(ntfy.address, "ntfy.address", current.ntfy.address),
+      topic: topic(optionalText(ntfy.topic, "ntfy.topic", current.ntfy.topic)),
+      token: optionalText(ntfy.token, "ntfy.token", "") || current.ntfy.token,
     },
     pollSeconds,
     testMode: s.testMode === undefined ? current.testMode : boolean(s.testMode, "testMode"),
@@ -257,6 +268,14 @@ function text(value: unknown, name: string): string {
 
 function optionalText(value: unknown, name: string, fallback: string): string {
   return value === undefined ? fallback : text(value, name).trim();
+}
+
+// ntfy's own limits on a topic's name.
+function topic(value: string): string {
+  if (value !== "" && !/^[-_A-Za-z0-9]{1,64}$/.test(value)) {
+    throw new ValidationError("A topic is up to 64 letters, numbers, - and _");
+  }
+  return value;
 }
 
 function number(value: unknown, name: string): number {

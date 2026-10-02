@@ -1,8 +1,8 @@
-// What a connection test returns: the service's version, or why it failed.
-// Rejected credentials are fixed with a new API key, an unreachable service
-// with a new address.
+// What a connection test returns: the service's version, if it has one to say,
+// or why it failed. Rejected credentials are fixed with a new API key, an
+// unreachable service with a new address.
 export type TestResult =
-  | { ok: true; version: string }
+  | { ok: true; version?: string }
   | { ok: false; reason: "credentials" | "unreachable"; message: string };
 
 export class ConnectionError extends Error {
@@ -32,9 +32,10 @@ export async function send(service: string, address: string, url: string, init: 
   }
 }
 
-export async function test(version: () => Promise<string>): Promise<TestResult> {
+export async function test(check: () => Promise<string | void>): Promise<TestResult> {
   try {
-    return { ok: true, version: await version() };
+    const version = await check();
+    return version === undefined ? { ok: true } : { ok: true, version };
   } catch (error) {
     if (!(error instanceof ConnectionError)) throw error;
     return { ok: false, reason: error.reason, message: error.message };

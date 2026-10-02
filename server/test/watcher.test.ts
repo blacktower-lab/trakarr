@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { after, afterEach, beforeEach, test } from "node:test";
 import { openConfig, parseRule, type Rule } from "../src/config.ts";
 import { createLog } from "../src/log.ts";
+import type { Notification } from "../src/notify.ts";
 import { openStore, type Store } from "../src/store.ts";
 import { createWatcher } from "../src/watcher.ts";
 import { startFakeProwlarr, type FakeProwlarr } from "./fake-prowlarr.ts";
@@ -72,8 +73,14 @@ function setup({ rules = [KESTREL], testMode = false, apiKey = "", store, prowla
   });
   config.saveRules(rules.map((rule) => parseRule(rule, rule.id)));
   const db = store ?? openStore(join(dir, "trakarr.db"));
-  const watcher = createWatcher({ config, store: db, log: createLog(db, "debug", false) });
-  return { config, store: db, watcher };
+  const notified: Notification[] = [];
+  const watcher = createWatcher({
+    config,
+    store: db,
+    log: createLog(db, "debug", false),
+    notify: (notification) => notified.push(notification),
+  });
+  return { config, store: db, watcher, notified };
 }
 
 test("test mode reports the hold and changes nothing", async () => {
@@ -449,4 +456,51 @@ test("a rule that was never held doesn't touch its indexer", async (t) => {
   await watcher.tick();
 
   assert.deepEqual(prowlarr.calls, []);
+});
+
+test("a hold and a release are sent to the user, and test mode says they're only what would happen", async () => {
+  seedBelowLimit();
+  const { watcher, config, notified } = setup({ testMode: true });
+  await watcher.tick();
+  assert.deepEqual(notified, [
+    { title: "Would hold downloads", message: "Kestrel fell to 0.364 and would hold 1 download", priority: 4 },
+  ]);
+
+  notified.length = 0;
+  config.saveSettings({ ...config.settings(), testMode: false });
+  fake.torrents.get("seed")!.uploaded = 2000;
+  await watcher.tick();
+  assert.deepEqual(notified.map((n) => n.title), ["Downloads released"]);
+});
+
+test("losing qBittorrent is sent, and so is its return, once", async () => {
+  seedBelowLimit();
+  const { watcher, notified } = setup();
+  await watcher.tick();
+  notified.length = 0;
+
+  fake.down = true;
+  await watcher.tick();
+  await watcher.tick();
+  assert.deepEqual(notified.map((n) => n.title), ["Problem"]);
+  assert.match(notified[0]!.message, /^Lost qBittorrent: /);
+
+  fake.down = false;
+  await watcher.tick();
+  await watcher.tick();
+  assert.deepEqual(notified.map((n) => n.title), ["Problem", "qBittorrent is back"]);
+});
+
+test("a freeleech about to end is sent once, and not while it still has long to run", async () => {
+  const { watcher, config, notified } = setup();
+  const now = Date.now();
+  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 0, freeleech: { from: now, until: now + 3 * HOUR }, pinned: false }]);
+
+  await watcher.tick();
+  assert.deepEqual(notified, []);
+
+  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 0, freeleech: { from: now, until: now + 30 * 60_000 }, pinned: false }]);
+  await watcher.tick();
+  await watcher.tick();
+  assert.deepEqual(notified, [{ title: "Freeleech ending", message: "The freeleech on tracker.kestrel.example ends in 30 min" }]);
 });

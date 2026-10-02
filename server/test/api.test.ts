@@ -9,6 +9,7 @@ import { openConfig } from "../src/config.ts";
 import { createLog } from "../src/log.ts";
 import { openStore, type Store } from "../src/store.ts";
 import { createWatcher, type Watcher } from "../src/watcher.ts";
+import { startFakeNtfy } from "./fake-ntfy.ts";
 import { startFakeQbit, type FakeQbit } from "./fake-qbit.ts";
 
 let dir: string;
@@ -26,7 +27,7 @@ before(async () => {
   config.saveSettings({ ...config.settings(), qbittorrent: { address: fake.address, apiKey: "qbt_secret" } });
   store = openStore(join(dir, "trakarr.db"));
   const log = createLog(store, "debug", false);
-  watcher = createWatcher({ config, store, log });
+  watcher = createWatcher({ config, store, log, notify: () => {} });
   server = createApi({ config, store, log, watcher }).listen(0);
   await new Promise((resolve) => server.once("listening", resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
@@ -320,4 +321,36 @@ test("a tracker is pinned and unpinned, kept in trackers.json only while it has 
     ["Pinned swift.example", { pinned: "false → true" }],
     ["Unpinned swift.example", { pinned: "true → false" }],
   ]);
+});
+
+test("ntfy's token never shows, a topic is checked, and a test sends a real message", async () => {
+  const ntfy = await startFakeNtfy();
+  try {
+    ntfy.token = "tk_secret";
+    const bad = await call("PATCH", "/settings", { ntfy: { topic: "not a topic" } });
+    assert.equal(bad.status, 400);
+
+    const saved = await call("PATCH", "/settings", { ntfy: { address: ntfy.address, topic: "trakarr", token: "tk_secret" } });
+    assert.deepEqual(saved.body.ntfy, { address: ntfy.address, topic: "trakarr", hasToken: true });
+    assert.equal(JSON.stringify(saved.body).includes("tk_secret"), false);
+
+    assert.deepEqual((await call("POST", "/test/ntfy")).body, { ok: true });
+    assert.deepEqual(ntfy.messages.map((m) => [m.topic, m.title]), [["trakarr", "trakarr"]]);
+    assert.deepEqual((await call("POST", "/test/ntfy", { token: "tk_wrong" })).body, {
+      ok: false,
+      reason: "credentials",
+      message: "ntfy rejected the access token (403)",
+    });
+
+    const lines = (await call("GET", "/logs?q=ntfy")).body as { level: string; message: string; fields: Record<string, unknown> | null }[];
+    const changed = lines.find((l) => l.message === "Settings saved" && l.fields?.["ntfy.token"]);
+    assert.equal(changed?.fields?.["ntfy.token"], "<redacted>");
+    assert.equal(changed?.fields?.["ntfy.topic"], "none → trakarr");
+    assert.deepEqual(
+      lines.filter((l) => /test notification/i.test(l.message)).map((l) => l.level),
+      ["info", "warn"],
+    );
+  } finally {
+    await ntfy.close();
+  }
 });

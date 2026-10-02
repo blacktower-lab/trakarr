@@ -25,7 +25,8 @@ dashboard is on port 7478. Run it again to update.
 
 Then connect qBittorrent in Settings > Integrations with an API key from its
 WebUI options, which needs qBittorrent 5.2 or later, add a rule, and turn test
-mode off once its events look right.
+mode off once its events look right. To be told when it holds, releases or loses
+qBittorrent, add an ntfy topic in Settings > Notifications.
 
 ## Development
 

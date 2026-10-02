@@ -14,6 +14,7 @@ import {
   type Torrent,
 } from "./engine.ts";
 import type { Log } from "./log.ts";
+import type { Notification } from "./notify.ts";
 import { createProwlarr } from "./prowlarr.ts";
 import { applyMaindata, createQbit, emptySnapshot, torrentsOf, type Qbit } from "./qbit.ts";
 import type { AppliedSwitch, EventKind, Store, StoredState } from "./store.ts";
@@ -27,13 +28,24 @@ export const HOLD_TAG = "trakarr-hold";
 // uploading the pieces it has, which helps the ratio recover.
 export const THROTTLE_BYTES = 1024;
 
+// How long before a freeleech ends the user is told.
+const FREELEECH_WARNING = 60 * 60 * 1000;
+
 interface Transition {
   rule: Rule;
   state: RuleState;
   ratio: number;
 }
 
-export function createWatcher({ config, store, log }: { config: Config; store: Store; log: Log }) {
+interface Deps {
+  config: Config;
+  store: Store;
+  log: Log;
+  // Tells the user about what trakarr did or can't do.
+  notify: (notification: Notification) => void;
+}
+
+export function createWatcher({ config, store, log, notify }: Deps) {
   const ledger = store.ledger();
   const states = store.ruleStates();
   const held = store.held();
@@ -47,6 +59,10 @@ export function createWatcher({ config, store, log }: { config: Config; store: S
   let torrents = new Map<string, Torrent>();
   let connection: TestResult = { ok: false, reason: "unreachable", message: "Not polled yet" };
   let lastUpdate: number | null = null;
+  // Whether the user was told qBittorrent is gone, so they're told it's back.
+  let lost = false;
+  // The freeleeches the user was told are about to end, by tracker and end.
+  const warned = new Set<string>();
   // The domains the torrents in qBittorrent announce to.
   let domains = new Set<string>();
 
@@ -71,6 +87,7 @@ export function createWatcher({ config, store, log }: { config: Config; store: S
     failing = new Set();
     try {
       endFreeleech();
+      warnFreeleech();
       await poll();
     } finally {
       failures = failing;
@@ -111,12 +128,19 @@ export function createWatcher({ config, store, log }: { config: Config; store: S
 
   function setConnection(next: TestResult) {
     const { address } = config.settings().qbittorrent;
-    if (next.ok && !connection.ok) log.info("qbit", "Connected to qBittorrent", { address, version: next.version });
+    if (next.ok && !connection.ok) {
+      log.info("qbit", "Connected to qBittorrent", { address, version: next.version ?? null });
+      if (lost) notify({ title: "qBittorrent is back", message: `Connected to ${address} again` });
+      lost = false;
+    }
     if (!next.ok && (connection.ok || connection.message !== next.message)) {
       // A fresh install has no address yet, which is no failure.
       if (address.trim() === "") log.info("qbit", "qBittorrent isn't set up yet, waiting for its address in Settings");
       else log.warn("qbit", `${next.message}, skipping polls until it's back`, { address });
-      if (connection.ok) event("error", `Lost qBittorrent: ${next.message}`);
+      if (connection.ok) {
+        event("error", `Lost qBittorrent: ${next.message}`);
+        lost = true;
+      }
     }
     connection = next;
   }
@@ -148,6 +172,20 @@ export function createWatcher({ config, store, log }: { config: Config; store: S
     for (const { domain } of ended) {
       log.info("engine", "Freeleech ended", { tracker: domain });
       event("tracker", `The freeleech on ${domain} ended`);
+    }
+  }
+
+  // Tells the user once when a freeleech is about to end, to use what's left.
+  function warnFreeleech() {
+    const now = Date.now();
+    for (const { domain, freeleech } of config.trackers()) {
+      if (!freeleech || freeleech.until <= now || freeleech.until - now > FREELEECH_WARNING) continue;
+      const key = `${domain} ${freeleech.until}`;
+      if (warned.has(key)) continue;
+      warned.add(key);
+      const minutes = Math.max(1, Math.round((freeleech.until - now) / 60_000));
+      log.info("engine", "Freeleech ends soon", { tracker: domain, minutes });
+      notify({ title: "Freeleech ending", message: `The freeleech on ${domain} ends in ${minutes} min` });
     }
   }
 
@@ -457,8 +495,13 @@ export function createWatcher({ config, store, log }: { config: Config; store: S
     event("error", text);
   }
 
+  // What trakarr does on its own is also sent to the user. What the user did
+  // from the UI isn't, since they were there.
   function event(kind: EventKind, text: string, testMode = false) {
     store.addEvent({ kind, text, testMode });
+    if (kind === "hold") notify({ title: testMode ? "Would hold downloads" : "Downloads held", message: text, priority: 4 });
+    else if (kind === "release") notify({ title: testMode ? "Would release downloads" : "Downloads released", message: text });
+    else if (kind === "error") notify({ title: "Problem", message: text, priority: 4 });
   }
 
   function status() {

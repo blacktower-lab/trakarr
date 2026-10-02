@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { createApi } from "./api.ts";
 import { CONFIG_DIR, openConfig } from "./config.ts";
 import { createLog, LEVELS, type Level } from "./log.ts";
+import { createNotifier } from "./notify.ts";
 import { openStore } from "./store.ts";
 import { createWatcher } from "./watcher.ts";
 
@@ -14,7 +15,7 @@ const HOUR = 60 * 60 * 1000;
 const config = openConfig();
 const store = openStore(join(CONFIG_DIR, "trakarr.db"));
 const log = createLog(store, LOG_LEVEL);
-const watcher = createWatcher({ config, store, log });
+const watcher = createWatcher({ config, store, log, notify: createNotifier({ config, log }).notify });
 
 // Old log lines go every hour. A shorter retention saved in the settings applies right away.
 const pruneLogs = () => store.pruneLogs(config.settings().logRetentionDays);
