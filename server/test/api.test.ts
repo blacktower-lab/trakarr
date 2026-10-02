@@ -228,6 +228,15 @@ test("everything the UI does is logged, with what it changed and never a secret"
   ]);
   await call("PATCH", "/settings", { qbittorrent: { apiKey: "qbt_secret" }, pollSeconds: 10 });
 
+  const bad = await call("PATCH", "/settings", { prowlarr: { switchProfiles: "yes" } });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.body.error, "prowlarr.switchProfiles must be true or false");
+  assert.equal((await call("PATCH", "/settings", { prowlarr: { switchProfiles: true } })).body.prowlarr.switchProfiles, true);
+  assert.deepEqual(lines("switchProfiles").filter(([level]) => level === "info"), [
+    ["info", "Settings saved", { "prowlarr.switchProfiles": "false → true" }],
+  ]);
+  await call("PATCH", "/settings", { prowlarr: { switchProfiles: false } });
+
   await call("POST", "/test/qbittorrent", { apiKey: "qbt_wrong" });
   assert.deepEqual(lines("Connection test").at(-1), [
     "warn",

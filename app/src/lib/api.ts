@@ -61,7 +61,7 @@ export type Language = "en" | "es";
 // publicSettings(): secrets only say whether they're set.
 export interface SavedSettings {
   qbittorrent: { address: string; hasApiKey: boolean };
-  prowlarr: { address: string; hasApiKey: boolean };
+  prowlarr: { address: string; hasApiKey: boolean; switchProfiles: boolean };
   ntfy: { address: string; topic: string; hasToken: boolean };
   // Empty for the browser's time zone.
   timeZone: string;
@@ -75,7 +75,7 @@ export interface SavedSettings {
 // What PATCH /settings takes. An empty secret keeps the saved one.
 export interface SettingsInput {
   qbittorrent?: { address?: string; apiKey?: string };
-  prowlarr?: { address?: string; apiKey?: string };
+  prowlarr?: { address?: string; apiKey?: string; switchProfiles?: boolean };
   ntfy?: { address?: string; topic?: string; token?: string };
   timeZone?: string;
   clock?: Clock;

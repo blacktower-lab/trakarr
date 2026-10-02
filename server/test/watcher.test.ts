@@ -68,7 +68,7 @@ function setup({ rules = [KESTREL], testMode = false, apiKey = "", store, prowla
   config.saveSettings({
     ...config.settings(),
     qbittorrent: { address: fake.address, apiKey },
-    prowlarr: { address: prowlarr?.address ?? "", apiKey: prowlarr?.apiKey ?? "" },
+    prowlarr: { address: prowlarr?.address ?? "", apiKey: prowlarr?.apiKey ?? "", switchProfiles: prowlarr !== undefined },
     testMode,
   });
   config.saveRules(rules.map((rule) => parseRule(rule, rule.id)));
@@ -427,6 +427,30 @@ test("a held rule moves its indexer to the held sync profile, and back on releas
   fake.torrents.get("seed")!.uploaded = 2000;
   await watcher.tick();
   assert.deepEqual(prowlarr.calls, ["7 2", "7 1"]);
+});
+
+test("with the switch off in the settings, a held rule leaves its indexer alone, and turning it off puts it back", async (t) => {
+  const prowlarr = await startFakeProwlarr();
+  t.after(() => prowlarr.close());
+  seedBelowLimit();
+  const { watcher, config } = setup({ rules: [SWITCHED], prowlarr });
+  const turn = (switchProfiles: boolean) =>
+    config.saveSettings({ ...config.settings(), prowlarr: { ...config.settings().prowlarr, switchProfiles } });
+
+  await watcher.tick();
+  assert.deepEqual(prowlarr.calls, ["7 2"]);
+
+  turn(false);
+  await watcher.tick();
+  assert.deepEqual(prowlarr.calls, ["7 2", "7 1"]);
+  assert.equal(watcher.status().rules[0]?.state, "held");
+
+  await watcher.tick();
+  assert.deepEqual(prowlarr.calls, ["7 2", "7 1"]);
+
+  turn(true);
+  await watcher.tick();
+  assert.deepEqual(prowlarr.calls, ["7 2", "7 1", "7 2"]);
 });
 
 test("an indexer switch that fails is tried again on the next poll", async (t) => {

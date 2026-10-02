@@ -346,6 +346,7 @@ function settingsChanges(old: Settings, next: Settings): Fields {
   const plain = (s: Settings): Fields => ({
     "qbittorrent.address": s.qbittorrent.address,
     "prowlarr.address": s.prowlarr.address,
+    "prowlarr.switchProfiles": s.prowlarr.switchProfiles,
     "ntfy.address": s.ntfy.address,
     "ntfy.topic": s.ntfy.topic,
     timeZone: s.timeZone,

@@ -65,7 +65,9 @@ export type Language = (typeof LANGUAGES)[number];
 
 export interface Settings {
   qbittorrent: { address: string; apiKey: string };
-  prowlarr: { address: string; apiKey: string };
+  // Whether a held rule moves its indexer to the held sync profile. Each rule
+  // says which indexer and which profiles.
+  prowlarr: { address: string; apiKey: string; switchProfiles: boolean };
   // Where trakarr sends its notifications. The token is only for a server that
   // asks for one.
   ntfy: { address: string; topic: string; token: string };
@@ -81,7 +83,7 @@ export interface Settings {
 
 const DEFAULT_SETTINGS: Settings = {
   qbittorrent: { address: "", apiKey: "" },
-  prowlarr: { address: "", apiKey: "" },
+  prowlarr: { address: "", apiKey: "", switchProfiles: false },
   ntfy: { address: "", topic: "", token: "" },
   timeZone: "",
   clock: "24",
@@ -110,12 +112,18 @@ export function openConfig(dir = CONFIG_DIR) {
 
   // Both files can be edited by hand, so they go through the same checks as
   // the API, and missing keys take their defaults.
-  let settings = checked(settingsPath, () => parseSettings(readJson(settingsPath, {}), DEFAULT_SETTINGS));
+  const stored = readJson<{ prowlarr?: { switchProfiles?: unknown } }>(settingsPath, {});
+  let settings = checked(settingsPath, () => parseSettings(stored, DEFAULT_SETTINGS));
   let rules = checked(rulesPath, () =>
     readJson<unknown[]>(rulesPath, []).map((rule) => parseRule(rule, (rule as { id?: unknown }).id)),
   );
   let trackers = checked(trackersPath, () => readJson<unknown[]>(trackersPath, []).map(parseTracker));
   let auth = checked(authPath, () => ({ password: text(object(readJson(authPath, {}), "auth").password ?? "", "password") }));
+  // Before the switch was a setting, a rule that had Prowlarr set was all it
+  // took, so an install like that keeps switching.
+  if (stored.prowlarr?.switchProfiles === undefined && rules.some((rule) => rule.prowlarr)) {
+    settings = { ...settings, prowlarr: { ...settings.prowlarr, switchProfiles: true } };
+  }
   writeJson(settingsPath, settings);
 
   return {
@@ -160,7 +168,7 @@ export function publicSettings({
 }: Settings) {
   return {
     qbittorrent: { address: qbittorrent.address, hasApiKey: qbittorrent.apiKey !== "" },
-    prowlarr: { address: prowlarr.address, hasApiKey: prowlarr.apiKey !== "" },
+    prowlarr: { address: prowlarr.address, hasApiKey: prowlarr.apiKey !== "", switchProfiles: prowlarr.switchProfiles },
     ntfy: { address: ntfy.address, topic: ntfy.topic, hasToken: ntfy.token !== "" },
     timeZone,
     clock,
@@ -189,6 +197,10 @@ export function parseSettings(input: unknown, current: Settings): Settings {
     prowlarr: {
       address: optionalText(prowlarr.address, "prowlarr.address", current.prowlarr.address),
       apiKey: optionalText(prowlarr.apiKey, "prowlarr.apiKey", "") || current.prowlarr.apiKey,
+      switchProfiles:
+        prowlarr.switchProfiles === undefined
+          ? current.prowlarr.switchProfiles
+          : boolean(prowlarr.switchProfiles, "prowlarr.switchProfiles"),
     },
     ntfy: {
       address: optionalText(ntfy.address, "ntfy.address", current.ntfy.address),

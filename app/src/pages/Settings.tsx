@@ -20,7 +20,7 @@ import { CircleAlert, CircleCheck, LockOpen, PanelLeft, Unplug, Wrench } from "l
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { useAuth } from "../components/AuthGate";
 import { Empty, Pending } from "../components/Empty";
-import { CheckboxField, FIELD_VARIANT, SecretInput, SelectField } from "../components/Form";
+import { CheckboxField, FIELD_VARIANT, SecretInput, SelectField, SwitchField } from "../components/Form";
 import { Section } from "../components/Section";
 import { api, type Clock, type Language, type SavedSettings, type SettingsInput, type TestResult } from "../lib/api";
 import { cx } from "../lib/cx";
@@ -369,6 +369,7 @@ function ProwlarrCard({ saved: settings, onSaved }: CardProps) {
         <Detail label={t("API key")} subtle>
           {saved.hasApiKey ? REDACTED : t("None")}
         </Detail>
+        <Detail label={t("Sync profile")}>{saved.switchProfiles ? t("Changes when held") : t("Never changes")}</Detail>
       </ServiceCard>
       <EditDialog {...service.dialog}>
         <ProwlarrForm key={service.session} saved={settings} focus={service.focus} onSave={service.save} />
@@ -382,6 +383,7 @@ function ProwlarrForm({ saved: settings, focus, onSave }: FormProps) {
   const saved = settings.prowlarr;
   const [address, setAddress] = useState(saved.address);
   const [apiKey, setApiKey] = useState("");
+  const [switching, setSwitching] = useState(saved.switchProfiles);
   const error = addressError(t, address);
   const draft = { address: address.trim(), apiKey };
 
@@ -389,9 +391,9 @@ function ProwlarrForm({ saved: settings, focus, onSave }: FormProps) {
     <EditForm
       title={t("Edit {name}", { name: "Prowlarr" })}
       valid={!error}
-      dirty={draft.address !== saved.address || apiKey !== ""}
+      dirty={draft.address !== saved.address || apiKey !== "" || switching !== saved.switchProfiles}
       test={{ values: [draft.address, apiKey], run: () => api.testProwlarr(draft) }}
-      onSave={() => onSave({ prowlarr: draft })}
+      onSave={() => onSave({ prowlarr: { ...draft, switchProfiles: switching } })}
     >
       <AddressField value={address} onChange={setAddress} error={error} autoFocus={focus === "address"} />
       <SecretInput
@@ -400,6 +402,12 @@ function ProwlarrForm({ saved: settings, focus, onSave }: FormProps) {
         value={apiKey}
         onChange={setApiKey}
         autoFocus={focus === "secret"}
+      />
+      <SwitchField
+        label={t("Change the indexer's sync profile when held")}
+        description={t("Each rule picks its indexer and profiles")}
+        isSelected={switching}
+        onChange={setSwitching}
       />
     </EditForm>
   );

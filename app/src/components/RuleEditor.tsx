@@ -1,5 +1,6 @@
 import {
   Button,
+  Description,
   FieldError,
   Fieldset,
   Input,
@@ -15,7 +16,7 @@ import { api, type HoldAction, type ProwlarrOptions, type RuleFields, type RuleS
 import { cx } from "../lib/cx";
 import { BUFFER_THRESHOLDS, DEFAULT_THRESHOLDS, thresholdsOf, toGiB, type Rule } from "../lib/data";
 import { msg, rich } from "../lib/i18n";
-import { useFormat, useT } from "../lib/prefs";
+import { useFormat, useSettings, useT } from "../lib/prefs";
 import { FIELD_VARIANT, PointDecimals, RadioField, ROW, SelectField, SwitchField } from "./Form";
 import { UsageBar } from "./UsageBar";
 
@@ -110,7 +111,8 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   const [release, setRelease] = useState(rule.releaseAbove);
   const [byBuffer, setByBuffer] = useState(rule.byBuffer);
   const [action, setAction] = useState<HoldAction>(rule.action);
-  const [prowlarrOn, setProwlarrOn] = useState(rule.prowlarr !== null);
+  // Whether a held rule's indexer changes sync profile, which Integrations sets for every rule.
+  const switching = useSettings().data?.prowlarr.switchProfiles === true;
   // Ids as text, since the selects' keys are. Empty until an indexer is picked.
   const [indexerId, setIndexerId] = useState(rule.prowlarr ? String(rule.prowlarr.indexerId) : "");
   const [heldProfileId, setHeldProfileId] = useState(rule.prowlarr ? String(rule.prowlarr.heldProfileId) : "");
@@ -186,17 +188,11 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
 
   // The indexer's current profile is where it goes back to after a release.
   const pickIndexer = (key: string) => {
-    setIndexerId(key);
+    setIndexerId(key === NO_INDEXER ? "" : key);
     const indexer = options?.indexers.find((i) => String(i.id) === key);
     if (!options || !indexer) return;
     setRestoreProfileId(String(indexer.appProfileId));
     if (heldProfileId === "") setHeldProfileId(defaultHeldProfile(options, indexer.appProfileId));
-  };
-
-  const toggleProwlarr = (on: boolean) => {
-    setProwlarrOn(on);
-    const first = options?.indexers[0];
-    if (on && indexerId === "" && first) pickIndexer(String(first.id));
   };
 
   const save = async () => {
@@ -210,13 +206,16 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
         releaseAbove: holdError || releaseError ? rule.releaseAbove : release,
         byBuffer,
         action,
-        prowlarr: prowlarrOn
-          ? {
-              indexerId: Number(indexerId),
-              heldProfileId: Number(heldProfileId),
-              restoreProfileId: Number(restoreProfileId),
-            }
-          : null,
+        // With the switch off in Integrations, the editor has nothing of Prowlarr's, so the rule keeps what it had.
+        prowlarr: !switching
+          ? rule.prowlarr
+          : indexerId === ""
+            ? null
+            : {
+                indexerId: Number(indexerId),
+                heldProfileId: Number(heldProfileId),
+                restoreProfileId: Number(restoreProfileId),
+              },
       });
     } finally {
       setSaving(false);
@@ -306,45 +305,44 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
             />
           </Fieldset>
 
-          <Separator />
+          {switching && (
+            <>
+              <Separator />
 
-          <div className="flex flex-col gap-4">
-            <SwitchField
-              label="Prowlarr"
-              description={prowlarr.error?.message ?? t("Change the indexer's sync profile when held")}
-              isSelected={prowlarrOn}
-              onChange={toggleProwlarr}
-              isDisabled={unavailable && !prowlarrOn}
-            />
-            {prowlarrOn && (
-              <div className="flex flex-col gap-4">
-                <SelectField
-                  label={t("Indexer")}
-                  value={indexerId}
-                  onValueChange={pickIndexer}
-                  items={itemsOf(options?.indexers)}
-                  isDisabled={unavailable}
-                />
-                {/* Side by side at any width: both profiles have short names. */}
-                <div className="grid grid-cols-2 items-start gap-x-3">
+              <Fieldset>
+                <Fieldset.Legend>Prowlarr</Fieldset.Legend>
+                <div className="flex flex-col gap-4">
+                  {prowlarr.error && <Description>{prowlarr.error.message}</Description>}
                   <SelectField
-                    label={t("While held")}
-                    value={heldProfileId}
-                    onValueChange={setHeldProfileId}
-                    items={itemsOf(options?.profiles)}
+                    label={t("Indexer")}
+                    value={indexerId === "" ? NO_INDEXER : indexerId}
+                    onValueChange={pickIndexer}
+                    items={{ [NO_INDEXER]: t("None"), ...itemsOf(options?.indexers) }}
                     isDisabled={unavailable}
                   />
-                  <SelectField
-                    label={t("After release")}
-                    value={restoreProfileId}
-                    onValueChange={setRestoreProfileId}
-                    items={itemsOf(options?.profiles)}
-                    isDisabled={unavailable}
-                  />
+                  {indexerId !== "" && (
+                    // Side by side at any width: both profiles have short names.
+                    <div className="grid grid-cols-2 items-start gap-x-3">
+                      <SelectField
+                        label={t("While held")}
+                        value={heldProfileId}
+                        onValueChange={setHeldProfileId}
+                        items={itemsOf(options?.profiles)}
+                        isDisabled={unavailable}
+                      />
+                      <SelectField
+                        label={t("After release")}
+                        value={restoreProfileId}
+                        onValueChange={setRestoreProfileId}
+                        items={itemsOf(options?.profiles)}
+                        isDisabled={unavailable}
+                      />
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
+              </Fieldset>
+            </>
+          )}
         </div>
       </Modal.Body>
 
@@ -363,6 +361,9 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
     </>
   );
 }
+
+// The Indexer select's key for a rule with none, since a key can't be empty.
+const NO_INDEXER = "none";
 
 // Select items keyed by id.
 function itemsOf(list: { id: number; name: string }[] = []): Record<string, string> {

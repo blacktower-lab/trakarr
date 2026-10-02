@@ -316,7 +316,7 @@ export function createWatcher({ config, store, log, notify }: Deps) {
         const what = n ? ` and ${verb("released", "would release")} ${downloads(n)}` : ", with nothing held";
         event("release", `${rule.name} reached ${formatRatio(ratio)}${what}`, testMode);
       }
-      if (testMode && rule.prowlarr) {
+      if (testMode && rule.prowlarr && config.settings().prowlarr.switchProfiles) {
         log.info("prowlarr", "Would change the indexer's sync profile", { rule: rule.name, indexer: rule.prowlarr.indexerId });
       }
     }
@@ -442,13 +442,15 @@ export function createWatcher({ config, store, log, notify }: Deps) {
 
   // Puts each rule's indexer on the sync profile its state asks for. A switch
   // that moved to another indexer or went away, with its rule or on its own, is
-  // undone first. What fails is tried again on the next poll.
+  // undone first, and so is every switch when the setting is turned off. What
+  // fails is tried again on the next poll.
   async function switchProfiles(rules: Rule[]) {
+    const on = config.settings().prowlarr.switchProfiles;
     for (const [ruleId, stored] of [...states]) {
       const rule = rules.find((r) => r.id === ruleId);
       const name = rule?.name ?? "A deleted rule";
       let applied = stored.prowlarr;
-      const target: AppliedSwitch | null = rule?.prowlarr
+      const target: AppliedSwitch | null = on && rule?.prowlarr
         ? {
             indexerId: rule.prowlarr.indexerId,
             profileId: rule.enabled && stored.state === "held" ? rule.prowlarr.heldProfileId : rule.prowlarr.restoreProfileId,
