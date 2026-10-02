@@ -62,7 +62,7 @@ export function Settings() {
   // narrow ones keep them in a drawer.
   const wide = useMediaQuery("(min-width: 768px)");
   // The sections that are built. The others are still empty.
-  const built = section === "system" || section === "integrations";
+  const built = section === "system" || section === "integrations" || section === "notifications";
 
   const content =
     built && settings.data ? (
@@ -71,8 +71,14 @@ export function Settings() {
       ) : (
         // Blocks of the same size, as many to a row as fit.
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
-          <QbittorrentCard saved={settings.data} onSaved={settings.refresh} />
-          <ProwlarrCard saved={settings.data} onSaved={settings.refresh} />
+          {section === "integrations" ? (
+            <>
+              <QbittorrentCard saved={settings.data} onSaved={settings.refresh} />
+              <ProwlarrCard saved={settings.data} onSaved={settings.refresh} />
+            </>
+          ) : (
+            <NtfyCard saved={settings.data} onSaved={settings.refresh} />
+          )}
         </div>
       )
     ) : (
@@ -339,8 +345,81 @@ function ProwlarrForm({ saved: settings, focus, onSave }: FormProps) {
   );
 }
 
+// Where trakarr sends what it does and what goes wrong. Nothing tests it as the
+// card shows, since a test sends a real notification.
+function NtfyCard({ saved: settings, onSaved }: CardProps) {
+  const saved = settings.ntfy;
+  const editor = useEditor("ntfy", onSaved);
+  const configured = saved.address !== "" && saved.topic !== "";
+
+  return (
+    <>
+      <ServiceCard name="ntfy" configured={configured} result={undefined} onEdit={editor.edit} secret="access token">
+        <Detail label="Address" subtle={!saved.address}>
+          {saved.address || "None"}
+        </Detail>
+        <Detail label="Topic" subtle={!saved.topic}>
+          {saved.topic || "None"}
+        </Detail>
+        <Detail label="Access token" subtle>
+          {saved.hasToken ? REDACTED : "None"}
+        </Detail>
+      </ServiceCard>
+      <EditDialog {...editor.dialog}>
+        <NtfyForm key={editor.session} saved={settings} focus={editor.focus} onSave={editor.save} />
+      </EditDialog>
+    </>
+  );
+}
+
+function NtfyForm({ saved: settings, focus, onSave }: FormProps) {
+  const saved = settings.ntfy;
+  const [address, setAddress] = useState(saved.address);
+  const [topic, setTopic] = useState(saved.topic);
+  const [token, setToken] = useState("");
+  const addressProblem = addressError(address);
+  const topicProblem = topicError(topic);
+  const draft = { address: address.trim(), topic: topic.trim(), token };
+
+  return (
+    <EditForm
+      title="Edit ntfy"
+      valid={!addressProblem && !topicProblem}
+      dirty={draft.address !== saved.address || draft.topic !== saved.topic || token !== ""}
+      test={{ values: [draft.address, draft.topic, token], run: () => api.testNtfy(draft) }}
+      onSave={() => onSave({ ntfy: draft })}
+    >
+      <AddressField
+        value={address}
+        onChange={setAddress}
+        error={addressProblem}
+        autoFocus={focus === "address"}
+        placeholder="https://ntfy.sh"
+      />
+      <TextField variant={FIELD_VARIANT} value={topic} onChange={setTopic} isInvalid={topicProblem !== undefined}>
+        <Label>Topic</Label>
+        <Input placeholder="trakarr" />
+        <FieldError>{topicProblem}</FieldError>
+      </TextField>
+      <SecretInput
+        label="Access token"
+        placeholder={KEEP_SECRET}
+        value={token}
+        onChange={setToken}
+        autoFocus={focus === "secret"}
+      />
+    </EditForm>
+  );
+}
+
 function addressError(address: string): string | undefined {
   return address.trim() === "" ? "Enter an address" : undefined;
+}
+
+// ntfy's own limits on a topic's name.
+function topicError(topic: string): string | undefined {
+  if (topic.trim() === "") return "Enter a topic";
+  return /^[-_A-Za-z0-9]{1,64}$/.test(topic.trim()) ? undefined : "Use up to 64 letters, numbers, - and _";
 }
 
 interface AddressFieldProps {
@@ -348,9 +427,10 @@ interface AddressFieldProps {
   onChange: (value: string) => void;
   error?: string;
   autoFocus: boolean;
+  placeholder?: string;
 }
 
-function AddressField({ value, onChange, error, autoFocus }: AddressFieldProps) {
+function AddressField({ value, onChange, error, autoFocus, placeholder = "host:port" }: AddressFieldProps) {
   return (
     <TextField
       variant={FIELD_VARIANT}
@@ -360,7 +440,7 @@ function AddressField({ value, onChange, error, autoFocus }: AddressFieldProps) 
       autoFocus={autoFocus}
     >
       <Label>Address</Label>
-      <Input placeholder="host:port" />
+      <Input placeholder={placeholder} />
       <FieldError>{error}</FieldError>
     </TextField>
   );
@@ -685,7 +765,11 @@ function TestOutcome({ outcome }: { outcome: TestResult | "testing" | null }) {
         ) : (
           <CircleAlert aria-hidden className="size-4 shrink-0" />
         ))}
-      {result && <span className="truncate">{result.ok ? `Connected · ${result.version}` : result.message}</span>}
+      {result && (
+        <span className="truncate">
+          {result.ok ? (result.version ? `Connected · ${result.version}` : "Sent") : result.message}
+        </span>
+      )}
     </p>
   );
 }

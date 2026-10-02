@@ -58,6 +58,7 @@ export interface QuotaChange {
 export interface SavedSettings {
   qbittorrent: { address: string; hasApiKey: boolean };
   prowlarr: { address: string; hasApiKey: boolean };
+  ntfy: { address: string; topic: string; hasToken: boolean };
   pollSeconds: number;
   testMode: boolean;
   logRetentionDays: number;
@@ -67,14 +68,15 @@ export interface SavedSettings {
 export interface SettingsInput {
   qbittorrent?: { address?: string; apiKey?: string };
   prowlarr?: { address?: string; apiKey?: string };
+  ntfy?: { address?: string; topic?: string; token?: string };
   pollSeconds?: number;
   testMode?: boolean;
   logRetentionDays?: number;
 }
 
-// server/src/connection.ts
+// server/src/connection.ts. Only a service with a version has one to say.
 export type TestResult =
-  | { ok: true; version: string }
+  | { ok: true; version?: string }
   | { ok: false; reason: "credentials" | "unreachable"; message: string };
 
 // server/src/store.ts
@@ -211,5 +213,7 @@ export const api = {
     request<TestResult>("POST", "test/qbittorrent", draft),
   testProwlarr: (draft?: NonNullable<SettingsInput["prowlarr"]>) =>
     request<TestResult>("POST", "test/prowlarr", draft),
+  // Sends a real notification.
+  testNtfy: (draft?: NonNullable<SettingsInput["ntfy"]>) => request<TestResult>("POST", "test/ntfy", draft),
   prowlarr: () => request<ProwlarrOptions>("GET", "prowlarr"),
 };
