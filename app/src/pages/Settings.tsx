@@ -10,7 +10,6 @@ import {
   Label,
   Modal,
   Spinner,
-  Tabs,
   TextField,
   Typography,
   toast,
@@ -82,7 +81,7 @@ export function Settings() {
 
   return (
     <div className="flex items-start gap-10">
-      {wide && <SectionTabs section={section} onSelect={setSection} />}
+      {wide && <SectionMenu section={section} onSelect={setSection} />}
       <div className="flex min-w-0 flex-1 flex-col gap-4">
         {wide ? (
           <Section title={SECTIONS[section]}>{content}</Section>
@@ -103,20 +102,34 @@ interface SectionNavProps {
   onSelect: (id: SectionId) => void;
 }
 
-function SectionTabs({ section, onSelect }: SectionNavProps) {
+// The sections' own menu, like the page menu but vertical: muted sections, and
+// the current one in the text color with a line on the left, also in the text
+// color. HeroUI's tabs draw that line in the accent, with no prop to change it.
+function SectionMenu({ section, onSelect }: SectionNavProps) {
   return (
-    <Tabs variant="secondary" orientation="vertical" align="start" selectedKey={section} onSelectionChange={(key) => onSelect(key as SectionId)}>
-      <Tabs.ListContainer>
-        <Tabs.List aria-label="Settings sections">
-          {(Object.keys(SECTIONS) as SectionId[]).map((id) => (
-            <Tabs.Tab key={id} id={id}>
-              {SECTIONS[id]}
-              <Tabs.Indicator />
-            </Tabs.Tab>
-          ))}
-        </Tabs.List>
-      </Tabs.ListContainer>
-    </Tabs>
+    <nav aria-label="Settings sections" className="self-start border-s border-separator">
+      <ul className="flex flex-col">
+        {(Object.keys(SECTIONS) as SectionId[]).map((id) => {
+          const selected = id === section;
+          return (
+            <li key={id}>
+              <button
+                type="button"
+                aria-current={selected ? "page" : undefined}
+                onClick={() => onSelect(id)}
+                className={cx(
+                  "relative flex w-full cursor-(--cursor-interactive) items-center px-4 py-2 text-start text-sm font-medium whitespace-nowrap outline-none transition-colors focus-visible:status-focused motion-reduce:transition-none",
+                  selected ? "text-foreground" : "text-muted hover:text-foreground",
+                )}
+              >
+                {SECTIONS[id]}
+                {selected && <span aria-hidden className="absolute inset-y-0 -start-px w-0.5 bg-foreground" />}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 }
 
@@ -139,7 +152,7 @@ function SectionDrawer({ section, onSelect }: SectionNavProps) {
                 <Drawer.Heading>Settings</Drawer.Heading>
               </Drawer.Header>
               <Drawer.Body>
-                <SectionTabs
+                <SectionMenu
                   section={section}
                   onSelect={(id) => {
                     onSelect(id);

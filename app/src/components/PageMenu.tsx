@@ -15,7 +15,7 @@ interface PageMenuProps<T extends string> {
 
 // The app's own page menu, made at the user's request instead of HeroUI's
 // tabs, after the one on HeroUI's docs: muted pages, and the current one in
-// the text color with an accent line under it.
+// the text color with a line under it, also in the text color.
 export function PageMenu<T extends string>({ label, items, current, onSelect }: PageMenuProps<T>) {
   return (
     <nav aria-label={label} className="overflow-x-auto">
@@ -37,7 +37,7 @@ export function PageMenu<T extends string>({ label, items, current, onSelect }: 
                 {/* Narrow screens drop the icons so every page name fits. */}
                 <Icon aria-hidden size={16} className="hidden sm:block" />
                 {text}
-                {selected && <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-accent" />}
+                {selected && <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-foreground" />}
               </button>
             </li>
           );
