@@ -21,7 +21,7 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
 } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { AuthGate } from "./components/AuthGate";
 import { Listed } from "./components/Empty";
 import { Logo } from "./components/Logo";
@@ -233,9 +233,6 @@ function Shell() {
             <Logo className="size-11" />
             <span className="wordmark text-[21px]">trakarr</span>
           </div>
-          <div className="ml-auto">
-            <QbittorrentStatus status={data?.status} error={error} />
-          </div>
         </div>
         <div className={cx("mx-auto max-w-[1400px] pt-6", PAGE_X)}>
           <PageMenu label={t("Pages")} items={PAGES} current={page} onSelect={setPage} />
@@ -280,54 +277,6 @@ function Shell() {
         onSave={saveQuota}
       />
     </div>
-  );
-}
-
-// Whether trakarr reaches qBittorrent. Its address and how fresh the numbers
-// are sit in the tooltip.
-function QbittorrentStatus({ status, error }: { status: Status | undefined; error: Error | undefined }) {
-  const t = useT();
-  if (error) return <StatusText color="bg-danger">{error.message}</StatusText>;
-  if (!status) {
-    return (
-      <Tooltip>
-        <Tooltip.Trigger>
-          <StatusText color="bg-foreground/30" />
-        </Tooltip.Trigger>
-        <Tooltip.Content>{t("Connecting")}</Tooltip.Content>
-      </Tooltip>
-    );
-  }
-
-  const { qbittorrent } = status;
-  const details = qbittorrent.ok
-    ? [
-        qbittorrent.address,
-        qbittorrent.lastUpdate !== null &&
-          t("updated {seconds} s ago", {
-            seconds: Math.max(0, Math.round((Date.now() - qbittorrent.lastUpdate) / 1000)),
-          }),
-      ]
-    : [qbittorrent.address, qbittorrent.message];
-
-  return (
-    <Tooltip>
-      <Tooltip.Trigger>
-        <StatusText color={qbittorrent.ok ? "bg-success" : "bg-danger"}>
-          {qbittorrent.ok ? `qBittorrent ${qbittorrent.version}` : "qBittorrent"}
-        </StatusText>
-      </Tooltip.Trigger>
-      <Tooltip.Content>{details.filter(Boolean).join(" · ")}</Tooltip.Content>
-    </Tooltip>
-  );
-}
-
-function StatusText({ color, children }: { color: string; children?: ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-2 text-sm text-muted">
-      <span className={cx("size-1.5 rounded-full", color)} />
-      {children}
-    </span>
   );
 }
 
