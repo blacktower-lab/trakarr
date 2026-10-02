@@ -3,6 +3,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronsUpDown,
+  ChevronUp,
   CircleCheck,
   Coins,
   History,
@@ -554,16 +555,31 @@ interface SortableColumnProps {
   children: string;
 }
 
-// A column that sorts the table when pressed. HeroUI's arrow shows on the
-// sorted one; the others show that they can be sorted, in the same room, so
-// nothing shifts when the sort moves.
+// A column that sorts the table when pressed. HeroUI puts its arrow at the end
+// of the column, so it's off and the arrow is drawn here, left of the label. The
+// sorted column points up or down, like HeroUI's does; the others show that they
+// can be sorted. All take the same room, so nothing shifts when the sort moves.
 function SortableColumn({ id, isRowHeader, width, minWidth, children }: SortableColumnProps) {
   return (
     <Table.Column id={id} isRowHeader={isRowHeader} allowsSorting textValue={children} width={width} minWidth={minWidth}>
       {({ sortDirection }) => (
-        <Table.SortableColumnHeader sortDirection={sortDirection}>
-          {children}
-          {!sortDirection && <ChevronsUpDown aria-hidden size={12} className="shrink-0 text-muted" />}
+        <Table.SortableColumnHeader sortDirection={sortDirection} showIndicator={false}>
+          {/* One child, so the header's justify-between leaves them together. */}
+          <span className="inline-flex items-center gap-1.5">
+            {sortDirection ? (
+              <ChevronUp
+                aria-hidden
+                size={12}
+                className={cx(
+                  "shrink-0 transition-transform duration-100 ease-out motion-reduce:transition-none",
+                  sortDirection === "descending" && "rotate-180",
+                )}
+              />
+            ) : (
+              <ChevronsUpDown aria-hidden size={12} className="shrink-0 text-muted" />
+            )}
+            {children}
+          </span>
         </Table.SortableColumnHeader>
       )}
     </Table.Column>
