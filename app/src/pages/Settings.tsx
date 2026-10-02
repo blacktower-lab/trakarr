@@ -278,14 +278,10 @@ function LocaleCard({ saved, onSaved }: CardProps) {
     <SettingsCard
       body={
         <div className="flex flex-col gap-8">
-          {/* Side by side while they fit, and the time zone's name is long. */}
-          <div className="flex flex-wrap items-start gap-x-6 gap-y-8">
-            <div className="w-full sm:w-64">
-              <SelectField label={t("Language")} value={language} onValueChange={changeLanguage} items={LANGUAGES} />
-            </div>
-            <div className="w-full sm:w-96">
-              <SelectField label={t("Time zone")} value={zone} onValueChange={changeZone} items={zones} />
-            </div>
+          {/* Side by side, sharing the row, while each has room for the time zone's long name. */}
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] items-start gap-x-6 gap-y-8">
+            <SelectField label={t("Language")} value={language} onValueChange={changeLanguage} items={LANGUAGES} />
+            <SelectField label={t("Time zone")} value={zone} onValueChange={changeZone} items={zones} />
           </div>
           <div className="w-full max-w-64">
             <SelectField
