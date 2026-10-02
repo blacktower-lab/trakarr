@@ -34,7 +34,6 @@ export interface Held {
 // zero in qBittorrent, so its earlier lives add up in `past`.
 export interface LedgerEntry {
   hash: string;
-  tags: string[];
   domains: string[];
   uploaded: number;
   downloaded: number;
@@ -45,21 +44,17 @@ export interface LedgerEntry {
   freeDownloaded: number;
 }
 
-type Match = Pick<Rule, "tags" | "domains">;
+type Match = Pick<Rule, "domains">;
 
-// A torrent matches if it has one of the rule's tags or announces to one of its
-// domains or their subdomains.
-export function matches(rule: Match, tags: string[], domains: string[]): boolean {
-  return (
-    rule.tags.some((tag) => tags.includes(tag)) ||
-    domains.some((domain) => rule.domains.some((d) => domain === d || domain.endsWith(`.${d}`)))
-  );
+// A torrent matches if it announces to one of the rule's domains or their
+// subdomains.
+export function matches(rule: Match, domains: string[]): boolean {
+  return domains.some((domain) => rule.domains.some((d) => domain === d || domain.endsWith(`.${d}`)));
 }
 
 // What a match's torrents uploaded and downloaded, as its trackers count it:
 // the upload bought on its domains counts as uploaded, and what was downloaded
-// on a freeleech doesn't count. Bought upload belongs to a domain, so a match
-// on tags alone gets none.
+// on a freeleech doesn't count.
 export function totals(
   rule: Match,
   ledger: Iterable<LedgerEntry>,
@@ -68,19 +63,19 @@ export function totals(
   let uploaded = 0;
   let downloaded = 0;
   for (const entry of ledger) {
-    if (!matches(rule, entry.tags, entry.domains)) continue;
+    if (!matches(rule, entry.domains)) continue;
     uploaded += entry.uploaded + entry.pastUploaded;
     downloaded += entry.downloaded + entry.pastDownloaded - entry.freeDownloaded;
   }
   for (const quota of quotas) {
-    if (matches({ tags: [], domains: rule.domains }, [], [quota.domain])) uploaded += quota.bought;
+    if (matches(rule, [quota.domain])) uploaded += quota.bought;
   }
   return { uploaded, downloaded };
 }
 
 // Whether a torrent announces to a tracker, or a subdomain of one, of a list.
 export function announcesTo(torrent: Pick<Torrent, "domains">, domains: string[]): boolean {
-  return matches({ tags: [], domains }, [], torrent.domains);
+  return matches({ domains }, torrent.domains);
 }
 
 // No limit when nothing was downloaded, as with cross-seeds only.
@@ -129,7 +124,7 @@ export function plan(
   for (const torrent of torrents.values()) {
     const owner = announcesTo(torrent, freeleech)
       ? undefined
-      : holding.find((rule) => matches(rule, torrent.tags, torrent.domains));
+      : holding.find((rule) => matches(rule, torrent.domains));
     const entry = held.get(torrent.hash);
     if (entry && !owner) release.push(entry);
     else if (!entry && owner && isDownloading(torrent)) hold.set(owner.id, [...(hold.get(owner.id) ?? []), torrent]);

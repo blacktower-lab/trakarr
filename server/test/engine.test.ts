@@ -6,7 +6,6 @@ import { matches, nextState, plan, ratioOf, totals, type Held, type LedgerEntry,
 const rule: Rule = {
   id: "kestrel",
   name: "Kestrel",
-  tags: ["kestrel"],
   domains: ["kestrel.example"],
   holdBelow: 1,
   releaseAbove: 1.1,
@@ -32,7 +31,6 @@ function torrent(hash: string, fields: Partial<Torrent> = {}): Torrent {
 
 function entry(fields: Partial<LedgerEntry> & { hash: string }): LedgerEntry {
   return {
-    tags: [],
     domains: [],
     uploaded: 0,
     downloaded: 0,
@@ -48,11 +46,10 @@ function held(hash: string, ruleId = "kestrel"): Held {
   return { hash, ruleId, name: hash, action: "throttle", dlLimit: -1, at: 0 };
 }
 
-test("a torrent matches by tag, by domain or by subdomain", () => {
-  assert.equal(matches(rule, ["kestrel"], []), true);
-  assert.equal(matches(rule, [], ["kestrel.example"]), true);
-  assert.equal(matches(rule, [], ["tracker.kestrel.example"]), true);
-  assert.equal(matches(rule, ["meridian"], ["notkestrel.example"]), false);
+test("a torrent matches by domain or by subdomain", () => {
+  assert.equal(matches(rule, ["kestrel.example"]), true);
+  assert.equal(matches(rule, ["tracker.kestrel.example"]), true);
+  assert.equal(matches(rule, ["notkestrel.example"]), false);
 });
 
 test("the ratio has no limit when nothing was downloaded", () => {
@@ -62,9 +59,9 @@ test("the ratio has no limit when nothing was downloaded", () => {
 
 test("totals count removed torrents and earlier lives of a hash", () => {
   const ledger = [
-    entry({ hash: "a", tags: ["kestrel"], uploaded: 10, downloaded: 20, pastUploaded: 5, pastDownloaded: 5 }),
+    entry({ hash: "a", domains: ["kestrel.example"], uploaded: 10, downloaded: 20, pastUploaded: 5, pastDownloaded: 5 }),
     entry({ hash: "b", domains: ["tracker.kestrel.example"], pastUploaded: 7, pastDownloaded: 3, removed: true }),
-    entry({ hash: "c", tags: ["meridian"], uploaded: 100, downloaded: 1 }),
+    entry({ hash: "c", domains: ["meridian.example"], uploaded: 100, downloaded: 1 }),
   ];
   assert.deepEqual(totals(rule, ledger, []), { uploaded: 22, downloaded: 28 });
 });
@@ -72,15 +69,13 @@ test("totals count removed torrents and earlier lives of a hash", () => {
 test("bought upload counts on its domain, and what was downloaded on a freeleech doesn't", () => {
   const ledger = [
     entry({ hash: "a", domains: ["tracker.kestrel.example"], uploaded: 10, downloaded: 50, freeDownloaded: 30 }),
-    entry({ hash: "b", tags: ["kestrel"], uploaded: 5, downloaded: 5 }),
+    entry({ hash: "b", domains: ["kestrel.example"], uploaded: 5, downloaded: 5 }),
   ];
   const quotas = [
     { domain: "tracker.kestrel.example", bought: 40, freeleech: null, pinned: false },
     { domain: "meridian.example", bought: 1000, freeleech: null, pinned: false },
   ];
   assert.deepEqual(totals(rule, ledger, quotas), { uploaded: 55, downloaded: 25 });
-  // Bought upload belongs to a domain, so a match on tags alone gets none.
-  assert.deepEqual(totals({ tags: ["kestrel"], domains: [] }, ledger, quotas), { uploaded: 5, downloaded: 5 });
 });
 
 test("the state only changes past the thresholds", () => {
@@ -94,10 +89,10 @@ test("the state only changes past the thresholds", () => {
 test("a held rule holds its downloads, and not completed or stopped torrents", () => {
   const torrents = new Map(
     [
-      torrent("dl", { tags: ["kestrel"] }),
-      torrent("done", { tags: ["kestrel"], progress: 1, state: "uploading" }),
-      torrent("stopped", { tags: ["kestrel"], state: "stoppedDL" }),
-      torrent("other", { tags: ["meridian"] }),
+      torrent("dl", { domains: ["kestrel.example"] }),
+      torrent("done", { domains: ["kestrel.example"], progress: 1, state: "uploading" }),
+      torrent("stopped", { domains: ["kestrel.example"], state: "stoppedDL" }),
+      torrent("other", { domains: ["meridian.example"] }),
     ].map((t) => [t.hash, t]),
   );
   const result = plan([rule], new Map([["kestrel", "held"]]), torrents, new Map(), []);
@@ -107,7 +102,7 @@ test("a held rule holds its downloads, and not completed or stopped torrents", (
 });
 
 test("holds are released when the rule is OK, paused or gone, and forgotten when the torrent is", () => {
-  const torrents = new Map([["dl", torrent("dl", { tags: ["kestrel"] })]]);
+  const torrents = new Map([["dl", torrent("dl", { domains: ["kestrel.example"] })]]);
   const current = new Map([
     ["dl", held("dl")],
     ["removed", held("removed")],
@@ -125,13 +120,13 @@ test("a torrent on a freeleech is never held, and what it held is released", () 
   const torrents = new Map(
     [
       torrent("free", { domains: ["tracker.kestrel.example"] }),
-      torrent("tagged", { tags: ["kestrel"] }),
+      torrent("paid", { domains: ["kestrel.example"] }),
       torrent("was held", { domains: ["tracker.kestrel.example"] }),
     ].map((t) => [t.hash, t]),
   );
   const result = plan([rule], new Map([["kestrel", "held"]]), torrents, new Map([["was held", held("was held")]]), [
     "tracker.kestrel.example",
   ]);
-  assert.deepEqual(result.hold.get("kestrel")?.map((t) => t.hash), ["tagged"]);
+  assert.deepEqual(result.hold.get("kestrel")?.map((t) => t.hash), ["paid"]);
   assert.deepEqual(result.release.map((h) => h.hash), ["was held"]);
 });

@@ -46,7 +46,7 @@ export function mergeRules(configs: RuleConfig[], statuses: RuleStatus[]): Rule[
 }
 
 // A row of the Dashboard's trackers: a domain the torrents in qBittorrent
-// announce to, or a rule that no such domain leads to, like one on tags.
+// announce to, or a rule none of whose domains a torrent announces to.
 export interface TrackerRow {
   key: string;
   // The domain, or what the rule matches.
@@ -83,7 +83,7 @@ export function trackerRows(rules: Rule[], trackers: TrackerStatus[]): TrackerRo
     const own = trackers.filter((tracker) => tracker.ruleId === rule.id);
     if (own.length > 0) return own.map((tracker) => row(tracker, rule));
     const { torrents, uploadedGiB, downloadedGiB } = rule;
-    const name = [...rule.tags, ...rule.domains].join(", ");
+    const name = rule.domains.join(", ");
     return [
       {
         key: `rule:${rule.id}`,
@@ -113,7 +113,6 @@ export function gaugeOf(row: TrackerRow): Rule {
     row.rule ?? {
       id: "",
       name: row.name,
-      tags: [],
       domains: [row.name],
       ...DEFAULT_THRESHOLDS,
       action: "throttle",

@@ -176,13 +176,12 @@ export function createApi({ config, store, log, watcher }: Deps) {
     res.status(204).end();
   });
 
-  // The rule editor's live count and totals of what a match reaches. It runs
+  // The rule editor's live count and totals of what its domains reach. It runs
   // as the match is typed, so it's only logged at debug.
   api.post("/rules/preview", (req, res) => {
     const match = parseMatch(req.body);
     const preview = watcher.preview(match);
     log.debug("api", "Previewed a match", {
-      tags: match.tags.join(", "),
       domains: match.domains.join(", "),
       torrents: preview.torrents,
     });
@@ -329,7 +328,6 @@ function ruleFields(rule: Rule): Fields {
   const { prowlarr } = rule;
   return {
     name: rule.name,
-    tags: rule.tags.join(", "),
     domains: rule.domains.join(", "),
     holdBelow: rule.holdBelow,
     releaseAbove: rule.releaseAbove,

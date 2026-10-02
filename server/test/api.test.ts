@@ -71,7 +71,10 @@ test("a connection test uses the saved secret when none is sent", async () => {
 });
 
 test("rules are checked, and a pasted announce URL keeps only its domain", async () => {
-  const bad = await call("POST", "/rules", { name: "Kestrel", tags: ["kestrel"], holdBelow: 1.1, releaseAbove: 1 });
+  const none = await call("POST", "/rules", { name: "Kestrel", holdBelow: 1, releaseAbove: 1.1 });
+  assert.equal(none.status, 400);
+  assert.equal(none.body.error, "Add a domain");
+  const bad = await call("POST", "/rules", { name: "Kestrel", domains: ["kestrel.example"], holdBelow: 1.1, releaseAbove: 1 });
   assert.equal(bad.status, 400);
   assert.equal(bad.body.error, "releaseAbove must be greater than holdBelow");
 
@@ -135,18 +138,18 @@ test("the status says where qBittorrent is and how often it's polled", async () 
   assert.equal(body.testMode, true);
 });
 
-test("a preview counts the torrents a match reaches, with their totals", async () => {
+test("a preview counts the torrents its domains reach, with their totals", async () => {
   const announce = "https://tracker.kestrel.example/announce/PASSKEY123";
-  const seeding = { state: "uploading", progress: 1, dl_limit: -1, trackers: [] };
-  fake.torrents.set("tagged", { name: "A", tags: "kestrel", uploaded: 300, downloaded: 100, ...seeding });
-  fake.torrents.set("tracked", { name: "B", tags: "", uploaded: 50, downloaded: 50, ...seeding, trackers: [announce] });
-  fake.torrents.set("other", { name: "C", tags: "other", uploaded: 9, downloaded: 9, ...seeding });
+  const seeding = { state: "uploading", progress: 1, dl_limit: -1 };
+  fake.torrents.set("tracked", { name: "A", tags: "", uploaded: 300, downloaded: 100, ...seeding, trackers: [announce] });
+  fake.torrents.set("sibling", { name: "B", tags: "", uploaded: 50, downloaded: 50, ...seeding, trackers: ["udp://kestrel.example:1337/announce"] });
+  fake.torrents.set("other", { name: "C", tags: "", uploaded: 9, downloaded: 9, ...seeding, trackers: ["https://other.example/announce"] });
   await watcher.tick();
 
-  const both = await call("POST", "/rules/preview", { tags: ["kestrel"], domains: [announce] });
+  const both = await call("POST", "/rules/preview", { domains: ["kestrel.example", announce] });
   assert.deepEqual(both.body, { torrents: 2, uploaded: 350, downloaded: 150 });
   assert.equal(JSON.stringify(both.body).includes("PASSKEY123"), false);
-  assert.deepEqual((await call("POST", "/rules/preview", { tags: ["nothing"] })).body, { torrents: 0, uploaded: 0, downloaded: 0 });
+  assert.deepEqual((await call("POST", "/rules/preview", { domains: ["nothing.example"] })).body, { torrents: 0, uploaded: 0, downloaded: 0 });
   assert.equal((await call("POST", "/rules/preview", { domains: ["nope"] })).status, 400);
 });
 
@@ -168,8 +171,8 @@ test("everything the UI does is logged, with what it changed and never a secret"
       .logs({ levels: ["debug", "info", "warn", "error"], query, before: Infinity, limit: 100 })
       .map((l) => [l.level, l.message, l.fields]);
 
-  const created = await call("POST", "/rules", { name: "Osprey", tags: ["osprey"], holdBelow: 1, releaseAbove: 1.1 });
-  await call("PATCH", `/rules/${created.body.id}`, { holdBelow: 0.9, domains: ["osprey.example"] });
+  const created = await call("POST", "/rules", { name: "Osprey", domains: ["osprey.example"], holdBelow: 1, releaseAbove: 1.1 });
+  await call("PATCH", `/rules/${created.body.id}`, { holdBelow: 0.9, domains: ["osprey.example", "falcon.example"] });
   await call("DELETE", `/rules/${created.body.id}`);
   assert.deepEqual(lines("Osprey rule"), [
     [
@@ -177,8 +180,7 @@ test("everything the UI does is logged, with what it changed and never a secret"
       "Osprey rule added",
       {
         name: "Osprey",
-        tags: "osprey",
-        domains: "",
+        domains: "osprey.example",
         holdBelow: 1,
         releaseAbove: 1.1,
         action: "throttle",
@@ -186,14 +188,13 @@ test("everything the UI does is logged, with what it changed and never a secret"
         enabled: true,
       },
     ],
-    ["info", "Osprey rule edited", { domains: "none → osprey.example", holdBelow: "1 → 0.9" }],
+    ["info", "Osprey rule edited", { domains: "osprey.example → osprey.example, falcon.example", holdBelow: "1 → 0.9" }],
     [
       "info",
       "Osprey rule deleted",
       {
         name: "Osprey",
-        tags: "osprey",
-        domains: "osprey.example",
+        domains: "osprey.example, falcon.example",
         holdBelow: 0.9,
         releaseAbove: 1.1,
         action: "throttle",

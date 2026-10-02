@@ -51,7 +51,7 @@ export function RuleEditor({ open, rule, draft, session, onOpenChange, onSave }:
   );
 }
 
-// Tags and domains are typed as lists split by commas or spaces.
+// Domains are typed as a list split by commas or spaces.
 function splitList(text: string): string[] {
   return [...new Set(text.split(/[\s,]+/).filter(Boolean))];
 }
@@ -75,7 +75,6 @@ function isDomain(value: string): boolean {
 const NEW_RULE: Rule = {
   id: "",
   name: "",
-  tags: [],
   domains: [],
   ...DEFAULT_THRESHOLDS,
   action: "throttle",
@@ -103,9 +102,7 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   const t = useT();
   const format = useFormat();
   const [name, setName] = useState(rule.name);
-  const [tagsText, setTagsText] = useState(rule.tags.join(", "));
   const [domainsText, setDomainsText] = useState(rule.domains.join(", "));
-  const tags = splitList(tagsText);
   const domains = [...new Set(splitList(domainsText).map(toDomain))];
   const badDomain = domains.find((d) => !isDomain(d));
   // A bad domain shows once the field is left, not while it's being typed.
@@ -125,7 +122,7 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   const errors = {
     name: name.trim() === "" ? t("Enter a name") : undefined,
     domains: badDomain ? t("{domain} isn't a domain", { domain: badDomain }) : undefined,
-    match: tags.length === 0 && domains.length === 0 ? t("Add a tag or a domain") : undefined,
+    match: domains.length === 0 ? t("Add a domain") : undefined,
     hold: !(hold > 0) ? t("Enter a ratio above 0") : undefined,
     release: !(release > 0)
       ? t("Enter a ratio above 0")
@@ -142,13 +139,13 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
     uploadedGiB: rule.uploadedGiB,
     downloadedGiB: rule.downloadedGiB,
   });
-  const matchKey = JSON.stringify([tags, domains]);
+  const matchKey = JSON.stringify(domains);
   useEffect(() => {
-    if (badDomain || (tags.length === 0 && domains.length === 0)) return;
+    if (badDomain || domains.length === 0) return;
     // Cleanup drops the answer to a match that was typed over since.
     let stale = false;
     const timer = window.setTimeout(() => {
-      api.preview({ tags, domains }).then(
+      api.preview({ domains }).then(
         ({ torrents, uploaded, downloaded }) => {
           if (!stale) setReach({ torrents, uploadedGiB: toGiB(uploaded), downloadedGiB: toGiB(downloaded) });
         },
@@ -161,7 +158,7 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
       stale = true;
       window.clearTimeout(timer);
     };
-    // tags and domains are rebuilt on every render, so the effect follows their content.
+    // domains is rebuilt on every render, so the effect follows its content.
   }, [matchKey]);
 
   const ratio = reach.downloadedGiB === 0 ? Infinity : reach.uploadedGiB / reach.downloadedGiB;
@@ -202,7 +199,6 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
     try {
       await onSave({
         name: name.trim(),
-        tags,
         domains,
         holdBelow: hold,
         releaseAbove: release,
@@ -232,10 +228,6 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
                 <Label>{t("Name")}</Label>
                 <Input />
                 <FieldError>{errors.name}</FieldError>
-              </TextField>
-              <TextField variant={FIELD_VARIANT} value={tagsText} onChange={setTagsText}>
-                <Label>{t("Tags")}</Label>
-                <Input placeholder={t("Comma-separated")} />
               </TextField>
             </div>
             {/* Leaving the field swaps any pasted announce URL for its domain. */}

@@ -18,7 +18,6 @@ export interface ProwlarrSwitch {
 export interface Rule {
   id: string;
   name: string;
-  tags: string[];
   domains: string[];
   holdBelow: number;
   releaseAbove: number;
@@ -208,8 +207,8 @@ export function parseRule(input: unknown, id: unknown): Rule {
   if (typeof id !== "string" || id === "") throw new ValidationError("A rule needs an id");
   const name = text(r.name, "name").trim();
   if (name === "") throw new ValidationError("name is required");
-  const { tags, domains } = parseMatch(r);
-  if (tags.length === 0 && domains.length === 0) throw new ValidationError("Add a tag or a domain");
+  const { domains } = parseMatch(r);
+  if (domains.length === 0) throw new ValidationError("Add a domain");
   const holdBelow = number(r.holdBelow, "holdBelow");
   const releaseAbove = number(r.releaseAbove, "releaseAbove");
   if (!(holdBelow > 0)) throw new ValidationError("holdBelow must be greater than 0");
@@ -219,7 +218,6 @@ export function parseRule(input: unknown, id: unknown): Rule {
   return {
     id,
     name,
-    tags,
     domains,
     holdBelow,
     releaseAbove,
@@ -229,15 +227,14 @@ export function parseRule(input: unknown, id: unknown): Rule {
   };
 }
 
-// A rule's tags and domains, trimmed and without repeats. A pasted announce
-// URL keeps only its host, so its passkey is never stored.
-export function parseMatch(input: unknown): { tags: string[]; domains: string[] } {
+// A rule's domains, without repeats. A pasted announce URL keeps only its host,
+// so its passkey is never stored.
+export function parseMatch(input: unknown): { domains: string[] } {
   const r = object(input, "match");
-  const tags = unique(list(r.tags ?? [], "tags").map((tag) => tag.trim()));
   const domains = unique(list(r.domains ?? [], "domains").map(toDomain));
   const bad = domains.find((domain) => !DOMAIN.test(domain));
   if (bad !== undefined) throw new ValidationError(bad.includes("/") ? "A domain isn't valid" : `${bad} isn't a domain`);
-  return { tags, domains };
+  return { domains };
 }
 
 export function parseLogin(input: unknown): string {

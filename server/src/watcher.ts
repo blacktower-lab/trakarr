@@ -223,7 +223,6 @@ export function createWatcher({ config, store, log, notify }: Deps) {
         !entry.removed &&
         entry.uploaded === t.uploaded &&
         entry.downloaded === t.downloaded &&
-        same(entry.tags, t.tags) &&
         same(entry.domains, t.domains)
       ) {
         continue;
@@ -232,7 +231,6 @@ export function createWatcher({ config, store, log, notify }: Deps) {
       const downloaded = Math.max(0, t.downloaded - (entry?.downloaded ?? 0));
       const next: LedgerEntry = {
         hash: t.hash,
-        tags: t.tags,
         domains: t.domains,
         uploaded: t.uploaded,
         downloaded: t.downloaded,
@@ -525,8 +523,8 @@ export function createWatcher({ config, store, log, notify }: Deps) {
         const quota = quotas.find((q) => q.domain === domain);
         return {
           domain,
-          ruleId: rules.find((rule) => matches({ tags: [], domains: rule.domains }, [], [domain]))?.id ?? null,
-          ...preview({ tags: [], domains: [domain] }),
+          ruleId: rules.find((rule) => matches(rule, [domain]))?.id ?? null,
+          ...preview({ domains: [domain] }),
           bought: quota?.bought ?? 0,
           freeleech: quota?.freeleech ?? null,
           pinned: quota?.pinned ?? false,
@@ -542,12 +540,12 @@ export function createWatcher({ config, store, log, notify }: Deps) {
     };
   }
 
-  // What a set of tags and domains reaches: how many torrents in qBittorrent,
+  // What a set of domains reaches: how many torrents in qBittorrent,
   // and the totals the ledger keeps for them, removed torrents included, as
   // their trackers count them.
-  function preview(match: Pick<Rule, "tags" | "domains">) {
+  function preview(match: Pick<Rule, "domains">) {
     let count = 0;
-    for (const t of torrents.values()) if (matches(match, t.tags, t.domains)) count++;
+    for (const t of torrents.values()) if (matches(match, t.domains)) count++;
     return { torrents: count, ...totals(match, ledger.values(), config.trackers()) };
   }
 

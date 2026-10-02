@@ -14,7 +14,6 @@ export interface ProwlarrSwitch {
 export interface RuleConfig {
   id: string;
   name: string;
-  tags: string[];
   domains: string[];
   holdBelow: number;
   releaseAbove: number;
@@ -27,7 +26,6 @@ export interface RuleConfig {
 export type RuleFields = Omit<RuleConfig, "id" | "enabled">;
 
 export interface Match {
-  tags: string[];
   domains: string[];
 }
 

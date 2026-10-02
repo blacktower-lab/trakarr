@@ -72,7 +72,7 @@ export function Rules({ rules, error, onNew, onEdit, onDelete }: RulesProps) {
                           {!rule.enabled && <span className="text-muted">{t("paused")}</span>}
                         </span>
                       </Table.Cell>
-                      <Table.Cell>{[...rule.tags, ...rule.domains].join(", ")}</Table.Cell>
+                      <Table.Cell>{rule.domains.join(", ")}</Table.Cell>
                       <Table.Cell>{format.ratio(rule.holdBelow)}</Table.Cell>
                       <Table.Cell>{format.ratio(rule.releaseAbove)}</Table.Cell>
                       <Table.Cell>{t(ACTIONS[rule.action].label)}</Table.Cell>

@@ -60,7 +60,7 @@ const SCHEMA = `
     dl_limit INTEGER NOT NULL, at INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS ledger (
-    hash TEXT PRIMARY KEY, tags TEXT NOT NULL, domains TEXT NOT NULL,
+    hash TEXT PRIMARY KEY, domains TEXT NOT NULL,
     uploaded INTEGER NOT NULL, downloaded INTEGER NOT NULL,
     past_uploaded INTEGER NOT NULL, past_downloaded INTEGER NOT NULL, removed INTEGER NOT NULL,
     free_downloaded INTEGER NOT NULL DEFAULT 0
@@ -77,6 +77,8 @@ export function openStore(path: string) {
   if (!ledgerColumns.some((column) => column.name === "free_downloaded")) {
     db.exec("ALTER TABLE ledger ADD COLUMN free_downloaded INTEGER NOT NULL DEFAULT 0");
   }
+  // And from before rules stopped matching by tag, a column the ledger no longer keeps.
+  if (ledgerColumns.some((column) => column.name === "tags")) db.exec("ALTER TABLE ledger DROP COLUMN tags");
 
   const statements = {
     addLog: db.prepare("INSERT INTO logs (at, level, scope, message, fields) VALUES (?, ?, ?, ?, ?)"),
@@ -93,7 +95,7 @@ export function openStore(path: string) {
     putHeld: db.prepare("INSERT OR REPLACE INTO held (hash, rule_id, name, action, dl_limit, at) VALUES (?, ?, ?, ?, ?, ?)"),
     deleteHeld: db.prepare("DELETE FROM held WHERE hash = ?"),
     putLedger: db.prepare(
-      "INSERT OR REPLACE INTO ledger (hash, tags, domains, uploaded, downloaded, past_uploaded, past_downloaded, removed, free_downloaded) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT OR REPLACE INTO ledger (hash, domains, uploaded, downloaded, past_uploaded, past_downloaded, removed, free_downloaded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     ),
   };
 
@@ -243,7 +245,6 @@ export function openStore(path: string) {
           row.hash as string,
           {
             hash: row.hash as string,
-            tags: JSON.parse(row.tags as string) as string[],
             domains: JSON.parse(row.domains as string) as string[],
             uploaded: row.uploaded as number,
             downloaded: row.downloaded as number,
@@ -262,7 +263,6 @@ export function openStore(path: string) {
         for (const e of entries) {
           statements.putLedger.run(
             e.hash,
-            JSON.stringify(e.tags),
             JSON.stringify(e.domains),
             e.uploaded,
             e.downloaded,

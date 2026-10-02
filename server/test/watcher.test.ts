@@ -17,7 +17,6 @@ after(() => rmSync(TMP, { recursive: true, force: true }));
 const KESTREL: Rule = {
   id: "kestrel",
   name: "Kestrel",
-  tags: ["kestrel"],
   domains: ["kestrel.example"],
   holdBelow: 1,
   releaseAbove: 1.1,
@@ -52,7 +51,7 @@ function torrent(fields: Partial<FakeTorrent>): FakeTorrent {
 
 // A completed torrent that puts Kestrel at 400 / 1100 = 0.364 with the download below.
 function seedBelowLimit() {
-  fake.torrents.set("seed", torrent({ tags: "kestrel", uploaded: 400, downloaded: 1000, state: "uploading", progress: 1 }));
+  fake.torrents.set("seed", torrent({ trackers: [ANNOUNCE], uploaded: 400, downloaded: 1000, state: "uploading", progress: 1 }));
   fake.torrents.set("dl", torrent({ downloaded: 100, trackers: [ANNOUNCE] }));
 }
 
@@ -135,7 +134,7 @@ test("a download that arrives while the rule is held is held too", async () => {
   await watcher.tick();
 
   fake.calls = [];
-  fake.torrents.set("new", torrent({ tags: "kestrel", downloaded: 1 }));
+  fake.torrents.set("new", torrent({ trackers: [ANNOUNCE], downloaded: 1 }));
   await watcher.tick();
 
   assert.deepEqual(fake.calls, ["setDownloadLimit new 1024", "addTags new trakarr-hold"]);
@@ -190,8 +189,8 @@ test("tagged torrents with no record are released", async () => {
 });
 
 test("a removed torrent still counts toward the ratio", async () => {
-  fake.torrents.set("seed", torrent({ tags: "kestrel", uploaded: 1000, downloaded: 800, state: "uploading", progress: 1 }));
-  fake.torrents.set("dl", torrent({ tags: "kestrel", downloaded: 100 }));
+  fake.torrents.set("seed", torrent({ trackers: [ANNOUNCE], uploaded: 1000, downloaded: 800, state: "uploading", progress: 1 }));
+  fake.torrents.set("dl", torrent({ trackers: [ANNOUNCE], downloaded: 100 }));
   const { watcher } = setup();
   await watcher.tick();
 
@@ -290,9 +289,9 @@ test("the status lists every tracker the torrents announce to, with its rule", a
     {
       domain: "tracker.kestrel.example",
       ruleId: "kestrel",
-      torrents: 2,
-      uploaded: 30,
-      downloaded: 110,
+      torrents: 3,
+      uploaded: 430,
+      downloaded: 1110,
       bought: 0,
       freeleech: null,
       pinned: false,
@@ -350,7 +349,7 @@ test("upload bought on a tracker counts toward its rule's ratio", async () => {
   const status = watcher.status();
   assert.deepEqual(status.rules[0], { id: "kestrel", state: "ok", torrents: 2, uploaded: 1400, downloaded: 1100 });
   const tracker = status.trackers.find((t) => t.domain === "tracker.kestrel.example");
-  assert.deepEqual([tracker?.uploaded, tracker?.bought], [1000, 1000]);
+  assert.deepEqual([tracker?.uploaded, tracker?.bought], [1400, 1000]);
 });
 
 test("on a freeleech, downloads don't count and aren't held, and the rule takes over when it ends", async () => {
@@ -448,7 +447,7 @@ test("deleting a held rule puts its indexer back on its usual profile", async (t
 test("a rule that was never held doesn't touch its indexer", async (t) => {
   const prowlarr = await startFakeProwlarr();
   t.after(() => prowlarr.close());
-  fake.torrents.set("seed", torrent({ tags: "kestrel", uploaded: 2000, downloaded: 1000, state: "uploading", progress: 1 }));
+  fake.torrents.set("seed", torrent({ trackers: [ANNOUNCE], uploaded: 2000, downloaded: 1000, state: "uploading", progress: 1 }));
   const { watcher, config } = setup({ rules: [SWITCHED], prowlarr });
 
   await watcher.tick();

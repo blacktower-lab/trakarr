@@ -8,7 +8,7 @@ import { openStore } from "../src/store.ts";
 const TMP = mkdtempSync(join(import.meta.dirname, ".tmp-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
 
-test("a database from before freeleech gets its column, and keeps its ledger", () => {
+test("a database from an older version is migrated, and keeps its ledger", () => {
   const path = join(TMP, "old.db");
   const old = new DatabaseSync(path);
   old.exec(`
@@ -26,7 +26,6 @@ test("a database from before freeleech gets its column, and keeps its ledger", (
   store.putLedger([{ ...store.ledger().get("a")!, freeDownloaded: 5 }]);
   assert.deepEqual(store.ledger().get("a"), {
     hash: "a",
-    tags: [],
     domains: ["kestrel.example"],
     uploaded: 10,
     downloaded: 20,
