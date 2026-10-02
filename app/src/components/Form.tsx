@@ -1,4 +1,4 @@
-import { Button, Description, InputGroup, Label, ListBox, Select, Switch, TextField } from "@heroui/react";
+import { Button, Checkbox, Description, InputGroup, Label, ListBox, Select, Switch, TextField } from "@heroui/react";
 import { Eye, EyeOff } from "lucide-react";
 import { useId, useState } from "react";
 
@@ -56,33 +56,13 @@ interface SwitchFieldProps {
   isSelected: boolean;
   onChange: (isSelected: boolean) => void;
   isDisabled?: boolean;
-  // Puts the switch before its text, on the left, not at the row's end.
-  switchFirst?: boolean;
 }
 
-// A switch with its label and description beside it, at the row's end unless
-// it's asked to go first.
-export function SwitchField({ label, description, isSelected, onChange, isDisabled, switchFirst }: SwitchFieldProps) {
+// A switch with its label and description beside it, at the row's end.
+export function SwitchField({ label, description, isSelected, onChange, isDisabled }: SwitchFieldProps) {
   // The switch sits at the row's end, so its text is beside it and linked by id.
   const labelId = useId();
   const descriptionId = useId();
-
-  if (switchFirst) {
-    // HeroUI's content wraps the switch and its text in one label, so a click on the text toggles it too.
-    return (
-      <Switch isSelected={isSelected} onChange={onChange} isDisabled={isDisabled}>
-        <Switch.Content>
-          <Switch.Control>
-            <Switch.Thumb />
-          </Switch.Control>
-          <span className="flex flex-col gap-0.5">
-            <Label>{label}</Label>
-            <Description>{description}</Description>
-          </span>
-        </Switch.Content>
-      </Switch>
-    );
-  }
 
   return (
     <div className="flex items-center justify-between gap-4">
@@ -104,6 +84,22 @@ export function SwitchField({ label, description, isSelected, onChange, isDisabl
         </Switch.Content>
       </Switch>
     </div>
+  );
+}
+
+// A checkbox before its label, with the description under it. HeroUI's content
+// wraps the box and the label, so a click on the label toggles it too.
+export function CheckboxField({ label, description, isSelected, onChange, isDisabled }: SwitchFieldProps) {
+  return (
+    <Checkbox variant={FIELD_VARIANT} isSelected={isSelected} onChange={onChange} isDisabled={isDisabled}>
+      <Checkbox.Content>
+        <Checkbox.Control>
+          <Checkbox.Indicator />
+        </Checkbox.Control>
+        <Label>{label}</Label>
+      </Checkbox.Content>
+      <Description>{description}</Description>
+    </Checkbox>
   );
 }
 

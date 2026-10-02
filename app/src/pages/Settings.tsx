@@ -20,7 +20,7 @@ import {
 import { CircleAlert, CircleCheck, PanelLeft, Unplug, Wrench } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { Empty, Pending } from "../components/Empty";
-import { FIELD_VARIANT, SecretInput, SelectField, SwitchField } from "../components/Form";
+import { CheckboxField, FIELD_VARIANT, SecretInput, SelectField } from "../components/Form";
 import { Section } from "../components/Section";
 import { usePoll } from "../hooks/usePoll";
 import { api, type SavedSettings, type SettingsInput, type TestResult } from "../lib/api";
@@ -182,8 +182,7 @@ function GeneralCard({ saved, onSaved }: CardProps) {
     <SettingsCard
       body={
         <div className="flex flex-col gap-8">
-          <SwitchField
-            switchFirst
+          <CheckboxField
             label="Test mode"
             description="Logs what would be held or released, and changes nothing"
             isSelected={testMode}
