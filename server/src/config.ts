@@ -56,12 +56,22 @@ export interface QuotaChange {
 // A freeleech is at most a month long.
 const MAX_FREELEECH_HOURS = 24 * 30;
 
+export const CLOCKS = ["12", "24"] as const;
+export const LANGUAGES = ["en", "es"] as const;
+
+export type Clock = (typeof CLOCKS)[number];
+export type Language = (typeof LANGUAGES)[number];
+
 export interface Settings {
   qbittorrent: { address: string; apiKey: string };
   prowlarr: { address: string; apiKey: string };
   // Where trakarr sends its notifications. The token is only for a server that
   // asks for one.
   ntfy: { address: string; topic: string; token: string };
+  // How the dashboard shows times and text. An empty time zone is the browser's.
+  timeZone: string;
+  clock: Clock;
+  language: Language;
   pollSeconds: number;
   testMode: boolean;
   // Days a log line is kept. Events stay.
@@ -72,6 +82,9 @@ const DEFAULT_SETTINGS: Settings = {
   qbittorrent: { address: "", apiKey: "" },
   prowlarr: { address: "", apiKey: "" },
   ntfy: { address: "", topic: "", token: "" },
+  timeZone: "",
+  clock: "24",
+  language: "en",
   pollSeconds: 5,
   // A fresh install only logs what it would do.
   testMode: true,
@@ -133,11 +146,24 @@ export function openConfig(dir = CONFIG_DIR) {
 export type Config = ReturnType<typeof openConfig>;
 
 // What the API shows of the settings: secrets only say whether they're set.
-export function publicSettings({ qbittorrent, prowlarr, ntfy, pollSeconds, testMode, logRetentionDays }: Settings) {
+export function publicSettings({
+  qbittorrent,
+  prowlarr,
+  ntfy,
+  timeZone,
+  clock,
+  language,
+  pollSeconds,
+  testMode,
+  logRetentionDays,
+}: Settings) {
   return {
     qbittorrent: { address: qbittorrent.address, hasApiKey: qbittorrent.apiKey !== "" },
     prowlarr: { address: prowlarr.address, hasApiKey: prowlarr.apiKey !== "" },
     ntfy: { address: ntfy.address, topic: ntfy.topic, hasToken: ntfy.token !== "" },
+    timeZone,
+    clock,
+    language,
     pollSeconds,
     testMode,
     logRetentionDays,
@@ -168,6 +194,9 @@ export function parseSettings(input: unknown, current: Settings): Settings {
       topic: topic(optionalText(ntfy.topic, "ntfy.topic", current.ntfy.topic)),
       token: optionalText(ntfy.token, "ntfy.token", "") || current.ntfy.token,
     },
+    timeZone: s.timeZone === undefined ? current.timeZone : timeZone(s.timeZone),
+    clock: s.clock === undefined ? current.clock : oneOf(s.clock, CLOCKS, "clock"),
+    language: s.language === undefined ? current.language : oneOf(s.language, LANGUAGES, "language"),
     pollSeconds,
     testMode: s.testMode === undefined ? current.testMode : boolean(s.testMode, "testMode"),
     logRetentionDays,
@@ -298,6 +327,23 @@ function text(value: unknown, name: string): string {
 
 function optionalText(value: unknown, name: string, fallback: string): string {
   return value === undefined ? fallback : text(value, name).trim();
+}
+
+// An IANA name, or empty for the browser's.
+function timeZone(value: unknown): string {
+  const zone = text(value, "timeZone").trim();
+  if (zone === "") return zone;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: zone });
+  } catch {
+    throw new ValidationError(`${zone} isn't a time zone`);
+  }
+  return zone;
+}
+
+function oneOf<T extends string>(value: unknown, options: readonly T[], name: string): T {
+  if (!options.includes(value as T)) throw new ValidationError(`${name} must be ${options.join(" or ")}`);
+  return value as T;
 }
 
 // ntfy's own limits on a topic's name.

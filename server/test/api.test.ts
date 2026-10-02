@@ -354,3 +354,17 @@ test("ntfy's token never shows, a topic is checked, and a test sends a real mess
     await ntfy.close();
   }
 });
+
+test("the time zone, clock and language are checked, and a time zone can go back to the browser's", async () => {
+  const saved = await call("PATCH", "/settings", { timeZone: "America/Argentina/Buenos_Aires", clock: "12", language: "es" });
+  assert.deepEqual([saved.body.timeZone, saved.body.clock, saved.body.language], ["America/Argentina/Buenos_Aires", "12", "es"]);
+
+  assert.equal((await call("PATCH", "/settings", { timeZone: "Mars/Olympus" })).body.error, "Mars/Olympus isn't a time zone");
+  assert.equal((await call("PATCH", "/settings", { clock: "13" })).body.error, "clock must be 12 or 24");
+  assert.equal((await call("PATCH", "/settings", { language: "fr" })).body.error, "language must be en or es");
+
+  const back = await call("PATCH", "/settings", { timeZone: "", clock: "24", language: "en" });
+  assert.deepEqual([back.body.timeZone, back.body.clock, back.body.language], ["", "24", "en"]);
+  const lines = (await call("GET", "/logs?q=timeZone")).body as { fields: Record<string, unknown> }[];
+  assert.equal(lines.some((l) => l.fields.timeZone === "America/Argentina/Buenos_Aires → none"), true);
+});
