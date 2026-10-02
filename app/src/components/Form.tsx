@@ -107,11 +107,25 @@ export function SwitchField({ label, description, isSelected, onChange, isDisabl
   );
 }
 
-// A checkbox before its label and description, centered on both. It's built here
-// because HeroUI's has a fixed 16px box and no size prop, at the user's request.
-// It copies HeroUI's look: the default color off, the accent on. The label wraps
-// the box and all the text, so a click on any of it toggles the checkbox.
-export function CheckboxField({ label, description, isSelected, onChange, isDisabled }: SwitchFieldProps) {
+interface ChoiceProps {
+  type: "checkbox" | "radio";
+  // Radios of one group share a name, which lets the arrow keys move between them.
+  name?: string;
+  label: string;
+  description: string;
+  isSelected: boolean;
+  onChange: (isSelected: boolean) => void;
+  isDisabled?: boolean;
+  // What the box shows while selected.
+  mark: ReactNode;
+}
+
+// A checkbox or a radio before its label and description, centered on both.
+// They're built here because HeroUI's have a fixed 16px box and no size prop, at
+// the user's request. It copies HeroUI's look: the default color off, the accent
+// on. The label wraps the box and all the text, so a click on any of it toggles
+// the control.
+function Choice({ type, name, label, description, isSelected, onChange, isDisabled, mark }: ChoiceProps) {
   const labelId = useId();
   const descriptionId = useId();
 
@@ -120,7 +134,8 @@ export function CheckboxField({ label, description, isSelected, onChange, isDisa
       className={cx("group flex w-fit items-center gap-3", isDisabled ? "opacity-50" : "cursor-(--cursor-interactive)")}
     >
       <input
-        type="checkbox"
+        type={type}
+        name={name}
         className="peer sr-only"
         checked={isSelected}
         disabled={isDisabled}
@@ -135,7 +150,7 @@ export function CheckboxField({ label, description, isSelected, onChange, isDisa
           isSelected ? "bg-accent text-accent-foreground group-hover:bg-accent-hover" : "bg-default",
         )}
       >
-        {isSelected && <Check size={14} strokeWidth={3} />}
+        {isSelected && mark}
       </span>
       <span className="flex flex-col gap-0.5 select-none">
         <span id={labelId} className="text-sm font-medium text-foreground">
@@ -144,6 +159,41 @@ export function CheckboxField({ label, description, isSelected, onChange, isDisa
         <Description id={descriptionId}>{description}</Description>
       </span>
     </label>
+  );
+}
+
+export function CheckboxField(props: SwitchFieldProps) {
+  return <Choice type="checkbox" {...props} mark={<Check size={14} strokeWidth={3} />} />;
+}
+
+interface RadioFieldProps<T extends string> {
+  // Names the group.
+  label: string;
+  value: T;
+  onChange: (value: T) => void;
+  options: { id: T; label: string; description: string }[];
+}
+
+// Radios that look like the CheckboxField, in the form's two columns. Only the
+// mark differs: a small square where the checkbox has a tick.
+export function RadioField<T extends string>({ label, value, onChange, options }: RadioFieldProps<T>) {
+  const name = useId();
+
+  return (
+    <div role="radiogroup" aria-label={label} className={ROW}>
+      {options.map((option) => (
+        <Choice
+          key={option.id}
+          type="radio"
+          name={name}
+          label={option.label}
+          description={option.description}
+          isSelected={option.id === value}
+          onChange={() => onChange(option.id)}
+          mark={<span className="size-2 rounded-xs bg-current" />}
+        />
+      ))}
+    </div>
   );
 }
 

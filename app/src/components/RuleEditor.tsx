@@ -1,14 +1,11 @@
 import {
   Button,
-  Description,
   FieldError,
   Fieldset,
   Input,
   Label,
   Modal,
   NumberField,
-  Radio,
-  RadioGroup,
   Separator,
   TextField,
 } from "@heroui/react";
@@ -19,7 +16,7 @@ import { cx } from "../lib/cx";
 import { DEFAULT_THRESHOLDS, toGiB, type Rule } from "../lib/data";
 import { msg, rich } from "../lib/i18n";
 import { useFormat, useT } from "../lib/prefs";
-import { FIELD_VARIANT, PointDecimals, ROW, SelectField, SwitchField } from "./Form";
+import { FIELD_VARIANT, PointDecimals, RadioField, ROW, SelectField, SwitchField } from "./Form";
 import { UsageBar } from "./UsageBar";
 
 interface RuleEditorProps {
@@ -266,25 +263,16 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
 
           <Fieldset>
             <Fieldset.Legend>{t("When held")}</Fieldset.Legend>
-            <RadioGroup
-              variant={FIELD_VARIANT}
-              aria-label={t("When held")}
-              orientation="horizontal"
+            <RadioField
+              label={t("When held")}
               value={action}
-              onChange={(value) => setAction(value as HoldAction)}
-            >
-              {(Object.keys(ACTIONS) as HoldAction[]).map((id) => (
-                <Radio key={id} value={id}>
-                  <Radio.Content>
-                    <Radio.Control>
-                      <Radio.Indicator />
-                    </Radio.Control>
-                    {t(ACTIONS[id].label)}
-                  </Radio.Content>
-                  <Description>{t(ACTIONS[id].description)}</Description>
-                </Radio>
-              ))}
-            </RadioGroup>
+              onChange={setAction}
+              options={(Object.keys(ACTIONS) as HoldAction[]).map((id) => ({
+                id,
+                label: t(ACTIONS[id].label),
+                description: t(ACTIONS[id].description),
+              }))}
+            />
           </Fieldset>
 
           <Separator />
