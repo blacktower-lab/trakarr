@@ -122,6 +122,13 @@ export function gaugeOf(row: TrackerRow): Rule {
   );
 }
 
+// The trackers whose name has what was typed, in any case. A blank search keeps
+// them all.
+export function filterTrackers(rows: TrackerRow[], query: string): TrackerRow[] {
+  const needle = query.trim().toLowerCase();
+  return needle ? rows.filter((row) => row.name.toLowerCase().includes(needle)) : rows;
+}
+
 export type TrackerSort = "name" | "ratio" | "downloaded" | "buffer";
 
 // What each sortable column sorts by. Rows with nothing in the column, like

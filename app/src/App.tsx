@@ -1,4 +1,4 @@
-import { Button, I18nProvider, Table, Toast, Tooltip, toast } from "@heroui/react";
+import { Button, I18nProvider, SearchField, Table, Toast, Tooltip, toast } from "@heroui/react";
 import {
   ArrowDown,
   ArrowUp,
@@ -40,6 +40,7 @@ import {
 import { cx } from "./lib/cx";
 import {
   budgetOf,
+  filterTrackers,
   formatAgo,
   formatGiB,
   formatRatio,
@@ -302,8 +303,10 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onShowLogs, onTo
   const rules = live?.rules ?? [];
   // In their usual order until a column is sorted.
   const [sort, setSort] = useState<SortDescriptor>();
+  const [search, setSearch] = useState("");
   const rows = trackerRows(rules, live?.status.trackers ?? []);
-  const trackers = sort ? sortTrackers(rows, sort.column as TrackerSort, sort.direction) : rows;
+  const matching = filterTrackers(rows, search);
+  const trackers = sort ? sortTrackers(matching, sort.column as TrackerSort, sort.direction) : matching;
   // A page past the last, after trackers went away, shows the last one.
   const [trackerPage, setTrackerPage] = useState(1);
   const page = Math.min(trackerPage, pageCount(trackers.length, TRACKERS_PER_PAGE));
@@ -313,18 +316,48 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onShowLogs, onTo
 
   return (
     <div className="flex flex-col gap-10">
-      <Section title="Trackers">
+      <Section
+        title="Trackers"
+        action={
+          rows.length > 0 && (
+            // The input won't shrink below its own width, which is larger on a
+            // phone, so anything narrower clips the clear button.
+            <div className="w-64">
+              <SearchField
+                aria-label="Filter trackers"
+                fullWidth
+                value={search}
+                onChange={(value) => {
+                  setSearch(value);
+                  setTrackerPage(1);
+                }}
+              >
+                <SearchField.Group>
+                  <SearchField.SearchIcon />
+                  <SearchField.Input placeholder="Filter" />
+                  <SearchField.ClearButton />
+                </SearchField.Group>
+              </SearchField>
+            </div>
+          )
+        }
+      >
         <Listed
           loaded={!!live}
           error={error}
           count={trackers.length}
           icon={RadioTower}
-          empty={{
-            title: "No trackers yet",
-            description: live?.status.qbittorrent.ok
-              ? "qBittorrent has no torrents"
-              : "They show up once qBittorrent connects",
-          }}
+          // With trackers in the list, an empty one means the search left none.
+          empty={
+            rows.length > 0
+              ? { title: "No matching trackers", description: "Try another name" }
+              : {
+                  title: "No trackers yet",
+                  description: live?.status.qbittorrent.ok
+                    ? "qBittorrent has no torrents"
+                    : "They show up once qBittorrent connects",
+                }
+          }
         >
           <Table>
             {/* Sizes the columns from their widths, so sorting never moves them. */}
