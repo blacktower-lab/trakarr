@@ -222,14 +222,12 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
 
       <Modal.Body>
         <div className="@container flex flex-col gap-6">
-          <div className="flex flex-col gap-4">
-            <div className={ROW}>
-              <TextField variant={FIELD_VARIANT} value={name} onChange={setName} isInvalid={errors.name !== undefined}>
-                <Label>{t("Name")}</Label>
-                <Input />
-                <FieldError>{errors.name}</FieldError>
-              </TextField>
-            </div>
+          <div className={ROW}>
+            <TextField variant={FIELD_VARIANT} value={name} onChange={setName} isInvalid={errors.name !== undefined}>
+              <Label>{t("Name")}</Label>
+              <Input />
+              <FieldError>{errors.name}</FieldError>
+            </TextField>
             {/* Leaving the field swaps any pasted announce URL for its domain. */}
             <TextField
               variant={FIELD_VARIANT}
