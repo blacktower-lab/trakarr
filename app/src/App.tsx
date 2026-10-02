@@ -356,7 +356,7 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
               >
                 <SearchField.Group>
                   <SearchField.SearchIcon />
-                  <SearchField.Input placeholder="Filter" />
+                  <SearchField.Input placeholder="Filter by name" />
                   <SearchField.ClearButton />
                 </SearchField.Group>
               </SearchField>
