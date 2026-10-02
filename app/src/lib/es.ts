@@ -172,7 +172,6 @@ export const ES: Record<string, string> = {
   "They show up once qBittorrent connects": "Aparecen cuando qBittorrent se conecta",
   "Throttle": "Limitar",
   "Time": "Hora",
-  "Time & language": "Hora e idioma",
   "Time zone": "Zona horaria",
   "Topic": "Topic",
   "Torrent": "Torrent",

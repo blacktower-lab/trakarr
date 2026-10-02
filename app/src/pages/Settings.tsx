@@ -32,7 +32,6 @@ const SECTIONS = {
   system: msg("System"),
   integrations: msg("Integrations"),
   "api-keys": msg("API keys"),
-  time: msg("Time & language"),
   security: msg("Security"),
   notifications: msg("Notifications"),
 };
@@ -73,8 +72,6 @@ export function Settings() {
     built && settings.data ? (
       section === "system" ? (
         <GeneralCard saved={settings.data} onSaved={settings.refresh} />
-      ) : section === "time" ? (
-        <LocaleCard saved={settings.data} onSaved={settings.refresh} />
       ) : section === "security" ? (
         <PasswordCard />
       ) : section === "notifications" ? (
@@ -188,47 +185,6 @@ interface CardProps {
   onSaved: () => void;
 }
 
-function GeneralCard({ saved, onSaved }: CardProps) {
-  const t = useT();
-  const [testMode, setTestMode] = useState(saved.testMode);
-  const [retention, setRetention] = useState(String(saved.logRetentionDays));
-
-  // Each field saves as it changes, and goes back to what was saved if that fails.
-  const changeTestMode = async (value: boolean) => {
-    setTestMode(value);
-    if (!(await saveSettings(t, t("General"), { testMode: value }, onSaved))) setTestMode(saved.testMode);
-  };
-  const changeRetention = async (value: string) => {
-    setRetention(value);
-    if (!(await saveSettings(t, t("General"), { logRetentionDays: Number(value) }, onSaved))) {
-      setRetention(String(saved.logRetentionDays));
-    }
-  };
-
-  return (
-    <SettingsCard
-      body={
-        <div className="flex flex-col gap-8">
-          <CheckboxField
-            label={t("Test mode")}
-            description={t("Logs what would be held or released, and changes nothing")}
-            isSelected={testMode}
-            onChange={changeTestMode}
-          />
-          <div className="w-full max-w-64">
-            <SelectField
-              label={t("Log retention")}
-              value={retention}
-              onValueChange={changeRetention}
-              items={numberItems(RETENTION_DAYS, saved.logRetentionDays, (n) => t("{count} days", { count: n }))}
-            />
-          </div>
-        </div>
-      }
-    />
-  );
-}
-
 // The browser's own time zone stands in the select for the empty one the
 // settings keep, since a select's key can't be empty.
 const BROWSER_ZONE = "browser";
@@ -239,17 +195,25 @@ const ZONES: string[] = (() => {
   return zones.includes("UTC") ? zones : ["UTC", ...zones];
 })();
 
-// How the dashboard shows text and times. Each field saves as it changes, like
-// the System card's.
-function LocaleCard({ saved, onSaved }: CardProps) {
+function GeneralCard({ saved, onSaved }: CardProps) {
   const t = useT();
+  const [testMode, setTestMode] = useState(saved.testMode);
+  const [retention, setRetention] = useState(String(saved.logRetentionDays));
   const [language, setLanguage] = useState<Language>(saved.language);
   const [zone, setZone] = useState(saved.timeZone === "" ? BROWSER_ZONE : saved.timeZone);
   const [clock, setClock] = useState<Clock>(saved.clock);
-  const name = t("Time & language");
 
+  // Each field saves as it changes, and goes back to what was saved if that fails.
   const save = async (patch: SettingsInput, undo: () => void) => {
-    if (!(await saveSettings(t, name, patch, onSaved))) undo();
+    if (!(await saveSettings(t, t("General"), patch, onSaved))) undo();
+  };
+  const changeTestMode = (value: boolean) => {
+    setTestMode(value);
+    void save({ testMode: value }, () => setTestMode(saved.testMode));
+  };
+  const changeRetention = (value: string) => {
+    setRetention(value);
+    void save({ logRetentionDays: Number(value) }, () => setRetention(String(saved.logRetentionDays)));
   };
   const changeLanguage = (value: string) => {
     setLanguage(value as Language);
@@ -278,13 +242,28 @@ function LocaleCard({ saved, onSaved }: CardProps) {
     <SettingsCard
       body={
         <div className="flex flex-col gap-8">
-          <div className="w-full max-w-96">
+          <CheckboxField
+            label={t("Test mode")}
+            description={t("Logs what would be held or released, and changes nothing")}
+            isSelected={testMode}
+            onChange={changeTestMode}
+          />
+          <div className="w-full max-w-64">
+            <SelectField
+              label={t("Log retention")}
+              value={retention}
+              onValueChange={changeRetention}
+              items={numberItems(RETENTION_DAYS, saved.logRetentionDays, (n) => t("{count} days", { count: n }))}
+            />
+          </div>
+          <div className="w-full max-w-64">
             <SelectField label={t("Language")} value={language} onValueChange={changeLanguage} items={LANGUAGES} />
           </div>
+          {/* The time zone's name is the longest text a select holds. */}
           <div className="w-full max-w-96">
             <SelectField label={t("Time zone")} value={zone} onValueChange={changeZone} items={zones} />
           </div>
-          <div className="w-full max-w-96">
+          <div className="w-full max-w-64">
             <SelectField
               label={t("Clock")}
               value={clock}
