@@ -41,9 +41,9 @@ const POLL_OPTIONS = { "2": "2 s", "5": "5 s", "10": "10 s", "30": "30 s" };
 
 const RETENTION_OPTIONS = { "7": "7 days", "14": "14 days", "30": "30 days", "90": "90 days" };
 
-// Saved secrets never reach the UI, so they show as *** when set and their
-// fields start empty. Typing one replaces it on save.
-const REDACTED = "***";
+// Saved secrets never reach the UI, so they show as a row of asterisks when set
+// and their fields start empty. Typing one replaces it on save.
+const REDACTED = "*".repeat(16);
 const KEEP_SECRET = "Unchanged";
 
 // The options, plus the saved value when it isn't one of them, say after
