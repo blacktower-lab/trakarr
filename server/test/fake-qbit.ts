@@ -20,16 +20,15 @@ export interface FakeQbit {
   torrents: Map<string, FakeTorrent>;
   // Changes asked for, as "endpoint hashes [value]".
   calls: string[];
-  // Set to make the fake refuse requests without a session.
-  login: { username: string; password: string } | null;
+  // Set to make the fake refuse requests that don't carry this API key.
+  apiKey: string | null;
   down: boolean;
   close: () => Promise<void>;
 }
 
 export async function startFakeQbit(): Promise<FakeQbit> {
-  const fake: Omit<FakeQbit, "address" | "close"> = { torrents: new Map(), calls: [], login: null, down: false };
+  const fake: Omit<FakeQbit, "address" | "close"> = { torrents: new Map(), calls: [], apiKey: null, down: false };
   let rid = 0;
-  let session = "";
 
   const server: Server = createServer(async (req, res) => {
     let body = "";
@@ -42,14 +41,7 @@ export async function startFakeQbit(): Promise<FakeQbit> {
     };
 
     if (fake.down) return send(503, "");
-    if (path === "auth/login") {
-      if (form.get("username") !== fake.login?.username || form.get("password") !== fake.login?.password) {
-        return send(200, "Fails.");
-      }
-      session = `s${Date.now()}`;
-      return send(200, "Ok.", { "set-cookie": `SID=${session}; HttpOnly; path=/` });
-    }
-    if (fake.login && req.headers.cookie !== `SID=${session}`) return send(403, "Forbidden");
+    if (fake.apiKey && req.headers.authorization !== `Bearer ${fake.apiKey}`) return send(403, "Forbidden");
 
     if (path === "app/version") return send(200, "v5.2.3");
     if (path === "sync/maindata") {

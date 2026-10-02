@@ -56,7 +56,7 @@ export interface QuotaChange {
 const MAX_FREELEECH_HOURS = 24 * 30;
 
 export interface Settings {
-  qbittorrent: { address: string; username: string; password: string };
+  qbittorrent: { address: string; apiKey: string };
   prowlarr: { address: string; apiKey: string };
   pollSeconds: number;
   testMode: boolean;
@@ -65,7 +65,7 @@ export interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  qbittorrent: { address: "", username: "", password: "" },
+  qbittorrent: { address: "", apiKey: "" },
   prowlarr: { address: "", apiKey: "" },
   pollSeconds: 5,
   // A fresh install only logs what it would do.
@@ -116,7 +116,7 @@ export type Config = ReturnType<typeof openConfig>;
 // What the API shows of the settings: secrets only say whether they're set.
 export function publicSettings({ qbittorrent, prowlarr, pollSeconds, testMode, logRetentionDays }: Settings) {
   return {
-    qbittorrent: { address: qbittorrent.address, username: qbittorrent.username, hasPassword: qbittorrent.password !== "" },
+    qbittorrent: { address: qbittorrent.address, hasApiKey: qbittorrent.apiKey !== "" },
     prowlarr: { address: prowlarr.address, hasApiKey: prowlarr.apiKey !== "" },
     pollSeconds,
     testMode,
@@ -136,8 +136,7 @@ export function parseSettings(input: unknown, current: Settings): Settings {
   return {
     qbittorrent: {
       address: optionalText(qbit.address, "qbittorrent.address", current.qbittorrent.address),
-      username: optionalText(qbit.username, "qbittorrent.username", current.qbittorrent.username),
-      password: optionalText(qbit.password, "qbittorrent.password", "") || current.qbittorrent.password,
+      apiKey: optionalText(qbit.apiKey, "qbittorrent.apiKey", "") || current.qbittorrent.apiKey,
     },
     prowlarr: {
       address: optionalText(prowlarr.address, "prowlarr.address", current.prowlarr.address),

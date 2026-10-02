@@ -254,14 +254,13 @@ function ruleFields(rule: Rule): Fields {
 function settingsChanges(old: Settings, next: Settings): Fields {
   const plain = (s: Settings): Fields => ({
     "qbittorrent.address": s.qbittorrent.address,
-    "qbittorrent.username": s.qbittorrent.username,
     "prowlarr.address": s.prowlarr.address,
     pollSeconds: s.pollSeconds,
     testMode: s.testMode,
     logRetentionDays: s.logRetentionDays,
   });
   const fields = changes(plain(old), plain(next));
-  if (old.qbittorrent.password !== next.qbittorrent.password) fields["qbittorrent.password"] = "changed";
+  if (old.qbittorrent.apiKey !== next.qbittorrent.apiKey) fields["qbittorrent.apiKey"] = "changed";
   if (old.prowlarr.apiKey !== next.prowlarr.apiKey) fields["prowlarr.apiKey"] = "changed";
   return fields;
 }

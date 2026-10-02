@@ -3,9 +3,10 @@ import type { Settings } from "./config.ts";
 import { baseUrl, ConnectionError, send } from "./connection.ts";
 import type { Torrent } from "./engine.ts";
 
-// The few qBittorrent Web API calls trakarr makes (Web API 2.x, qBittorrent 5).
+// The few qBittorrent Web API calls trakarr makes (Web API 2.x). It authenticates with
+// an API key, which qBittorrent has from 5.2 on.
 
-export function createQbit({ address, username, password }: Settings["qbittorrent"]) {
+export function createQbit({ address, apiKey }: Settings["qbittorrent"]) {
   const base = `${baseUrl(address)}/api/v2/`;
   // The session cookie's name is a qBittorrent setting, so every cookie is kept.
   // Without auth, qBittorrent still ties the sync state to it.
@@ -21,32 +22,26 @@ export function createQbit({ address, username, password }: Settings["qbittorren
 
   function request(path: string, form?: Record<string, string>): Promise<Response> {
     const cookie = [...cookies].map(([name, value]) => `${name}=${value}`).join("; ");
+    const headers: Record<string, string> = {};
+    if (cookie) headers.cookie = cookie;
+    if (apiKey) headers.authorization = `Bearer ${apiKey}`;
     return send("qBittorrent", address, base + path, {
       method: form ? "POST" : "GET",
-      headers: cookie ? { cookie } : {},
+      headers,
       body: form && new URLSearchParams(form),
     });
   }
 
-  async function login() {
-    if (username === "") throw new ConnectionError("credentials", "qBittorrent asks for a login and no username is set");
-    const res = await request("auth/login", { username, password });
-    keepCookies(res);
-    // After too many failed logins, qBittorrent bans the IP for a while.
-    if (res.status === 403) throw new ConnectionError("credentials", "qBittorrent banned this IP after failed logins");
-    if (!res.ok || (await res.text()) !== "Ok.") throw new ConnectionError("credentials", "Username or password rejected");
-  }
-
-  // A 403 means the session is missing or expired: log in once and retry.
-  async function call(path: string, form?: Record<string, string>, retry = true): Promise<string> {
+  // Without a key, or with a wrong one, qBittorrent refuses with a 401 or a 403.
+  async function call(path: string, form?: Record<string, string>): Promise<string> {
     const res = await request(path, form);
     keepCookies(res);
-    if (res.status === 403 && retry) {
-      await res.body?.cancel();
-      await login();
-      return call(path, form, false);
+    if (res.status === 401 || res.status === 403) {
+      throw new ConnectionError(
+        "credentials",
+        apiKey ? `qBittorrent rejected the API key (${res.status})` : "qBittorrent asks for an API key and none is set",
+      );
     }
-    if (res.status === 403) throw new ConnectionError("credentials", "qBittorrent rejected the session (403)");
     if (!res.ok) throw new ConnectionError("unreachable", `qBittorrent returned ${res.status} for ${path}`);
     return res.text();
   }

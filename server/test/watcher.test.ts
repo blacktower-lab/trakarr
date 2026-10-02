@@ -55,11 +55,10 @@ function seedBelowLimit() {
   fake.torrents.set("dl", torrent({ downloaded: 100, trackers: [ANNOUNCE] }));
 }
 
-function setup({ rules = [KESTREL], testMode = false, username = "", password = "", store, prowlarr }: {
+function setup({ rules = [KESTREL], testMode = false, apiKey = "", store, prowlarr }: {
   rules?: Rule[];
   testMode?: boolean;
-  username?: string;
-  password?: string;
+  apiKey?: string;
   store?: Store;
   prowlarr?: FakeProwlarr;
 } = {}) {
@@ -67,7 +66,7 @@ function setup({ rules = [KESTREL], testMode = false, username = "", password = 
   const config = openConfig(dir);
   config.saveSettings({
     ...config.settings(),
-    qbittorrent: { address: fake.address, username, password },
+    qbittorrent: { address: fake.address, apiKey },
     prowlarr: { address: prowlarr?.address ?? "", apiKey: prowlarr?.apiKey ?? "" },
     testMode,
   });
@@ -210,7 +209,7 @@ test("nothing changes while qBittorrent can't be reached", async () => {
 
 test("a qBittorrent with no address yet is no warning", async () => {
   const { watcher, config, store } = setup();
-  config.saveSettings({ ...config.settings(), qbittorrent: { address: "", username: "", password: "" } });
+  config.saveSettings({ ...config.settings(), qbittorrent: { address: "", apiKey: "" } });
 
   await watcher.tick();
 
@@ -221,10 +220,10 @@ test("a qBittorrent with no address yet is no warning", async () => {
   );
 });
 
-test("logs in when qBittorrent asks for it", async () => {
-  fake.login = { username: "trakarr", password: "secret" };
+test("sends the API key when qBittorrent asks for it", async () => {
+  fake.apiKey = "qbt_secret";
   seedBelowLimit();
-  const { watcher } = setup({ username: "trakarr", password: "secret" });
+  const { watcher } = setup({ apiKey: "qbt_secret" });
 
   await watcher.tick();
 
@@ -232,15 +231,26 @@ test("logs in when qBittorrent asks for it", async () => {
   assert.deepEqual(fake.calls, ["setDownloadLimit dl 1024", "addTags dl trakarr-hold"]);
 });
 
-test("a rejected password is reported as a credentials problem", async () => {
-  fake.login = { username: "trakarr", password: "secret" };
-  const { watcher } = setup({ username: "trakarr", password: "wrong" });
+test("a rejected API key is reported as a credentials problem", async () => {
+  fake.apiKey = "qbt_secret";
+  const { watcher } = setup({ apiKey: "qbt_wrong" });
 
   await watcher.tick();
 
   const { qbittorrent } = watcher.status();
   assert.equal(qbittorrent.ok, false);
   assert.equal(!qbittorrent.ok && qbittorrent.reason, "credentials");
+  assert.equal(!qbittorrent.ok && qbittorrent.message, "qBittorrent rejected the API key (403)");
+});
+
+test("a missing API key says it's needed", async () => {
+  fake.apiKey = "qbt_secret";
+  const { watcher } = setup();
+
+  await watcher.tick();
+
+  const { qbittorrent } = watcher.status();
+  assert.equal(!qbittorrent.ok && qbittorrent.message, "qBittorrent asks for an API key and none is set");
 });
 
 test("the passkey in an announce URL is never stored or shown", async () => {

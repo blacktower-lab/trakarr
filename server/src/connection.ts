@@ -1,6 +1,6 @@
 // What a connection test returns: the service's version, or why it failed.
-// Rejected credentials are fixed with a new password or API key, an
-// unreachable service with a new address.
+// Rejected credentials are fixed with a new API key, an unreachable service
+// with a new address.
 export type TestResult =
   | { ok: true; version: string }
   | { ok: false; reason: "credentials" | "unreachable"; message: string };

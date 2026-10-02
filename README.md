@@ -23,7 +23,8 @@ It installs Node.js 24, the latest release in `/opt/trakarr` and a systemd
 service, with settings, rules and the database in `/var/lib/trakarr`. The
 dashboard is on port 7478. Run it again to update.
 
-Then connect qBittorrent in Settings > Integrations, add a rule, and turn test
+Then connect qBittorrent in Settings > Integrations with an API key from its
+WebUI options, which needs qBittorrent 5.2 or later, add a rule, and turn test
 mode off once its events look right.
 
 ## Development

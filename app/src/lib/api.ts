@@ -56,7 +56,7 @@ export interface QuotaChange {
 
 // publicSettings(): secrets only say whether they're set.
 export interface SavedSettings {
-  qbittorrent: { address: string; username: string; hasPassword: boolean };
+  qbittorrent: { address: string; hasApiKey: boolean };
   prowlarr: { address: string; hasApiKey: boolean };
   pollSeconds: number;
   testMode: boolean;
@@ -65,7 +65,7 @@ export interface SavedSettings {
 
 // What PATCH /settings takes. An empty secret keeps the saved one.
 export interface SettingsInput {
-  qbittorrent?: { address?: string; username?: string; password?: string };
+  qbittorrent?: { address?: string; apiKey?: string };
   prowlarr?: { address?: string; apiKey?: string };
   pollSeconds?: number;
   testMode?: boolean;

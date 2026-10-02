@@ -21,9 +21,9 @@ let watcher: Watcher;
 before(async () => {
   dir = mkdtempSync(join(import.meta.dirname, ".tmp-"));
   fake = await startFakeQbit();
-  fake.login = { username: "trakarr", password: "secret" };
+  fake.apiKey = "qbt_secret";
   const config = openConfig(dir);
-  config.saveSettings({ ...config.settings(), qbittorrent: { address: fake.address, username: "trakarr", password: "secret" } });
+  config.saveSettings({ ...config.settings(), qbittorrent: { address: fake.address, apiKey: "qbt_secret" } });
   store = openStore(join(dir, "trakarr.db"));
   const log = createLog(store, "debug", false);
   watcher = createWatcher({ config, store, log });
@@ -50,22 +50,22 @@ async function call(method: string, path: string, body?: unknown) {
 
 test("settings never show their secrets, and an empty one keeps the saved value", async () => {
   const saved = await call("GET", "/settings");
-  assert.deepEqual(saved.body.qbittorrent, { address: fake.address, username: "trakarr", hasPassword: true });
+  assert.deepEqual(saved.body.qbittorrent, { address: fake.address, hasApiKey: true });
   assert.equal(JSON.stringify(saved.body).includes("secret"), false);
 
-  const patched = await call("PATCH", "/settings", { qbittorrent: { password: "" }, pollSeconds: 10 });
+  const patched = await call("PATCH", "/settings", { qbittorrent: { apiKey: "" }, pollSeconds: 10 });
   assert.equal(patched.status, 200);
   assert.equal(patched.body.pollSeconds, 10);
   const file = JSON.parse(readFileSync(join(dir, "settings.json"), "utf8"));
-  assert.equal(file.qbittorrent.password, "secret");
+  assert.equal(file.qbittorrent.apiKey, "qbt_secret");
 });
 
 test("a connection test uses the saved secret when none is sent", async () => {
   assert.deepEqual((await call("POST", "/test/qbittorrent", { address: fake.address })).body, { ok: true, version: "5.2.3" });
-  assert.deepEqual((await call("POST", "/test/qbittorrent", { password: "wrong" })).body, {
+  assert.deepEqual((await call("POST", "/test/qbittorrent", { apiKey: "qbt_wrong" })).body, {
     ok: false,
     reason: "credentials",
-    message: "Username or password rejected",
+    message: "qBittorrent rejected the API key (403)",
   });
 });
 
@@ -202,19 +202,19 @@ test("everything the UI does is logged, with what it changed and never a secret"
     ],
   ]);
 
-  await call("PATCH", "/settings", { qbittorrent: { username: "osprey", password: "hunter2" }, pollSeconds: 30 });
-  assert.deepEqual(lines("trakarr → osprey")[0], [
+  await call("PATCH", "/settings", { qbittorrent: { apiKey: "qbt_hunter2" }, pollSeconds: 30 });
+  assert.deepEqual(lines("10 → 30")[0], [
     "info",
     "Settings saved",
-    { "qbittorrent.username": "trakarr → osprey", pollSeconds: "10 → 30", "qbittorrent.password": "<redacted>" },
+    { pollSeconds: "10 → 30", "qbittorrent.apiKey": "<redacted>" },
   ]);
-  await call("PATCH", "/settings", { qbittorrent: { username: "trakarr", password: "secret" }, pollSeconds: 10 });
+  await call("PATCH", "/settings", { qbittorrent: { apiKey: "qbt_secret" }, pollSeconds: 10 });
 
-  await call("POST", "/test/qbittorrent", { password: "wrong" });
+  await call("POST", "/test/qbittorrent", { apiKey: "qbt_wrong" });
   assert.deepEqual(lines("Connection test").at(-1), [
     "warn",
     "Connection test to qBittorrent failed",
-    { address: fake.address, error: "Username or password rejected" },
+    { address: fake.address, error: "qBittorrent rejected the API key (403)" },
   ]);
 
   await call("PATCH", "/rules/nope", { enabled: false });

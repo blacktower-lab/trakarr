@@ -221,18 +221,15 @@ function QbittorrentCard({ saved: settings, onSaved }: CardProps) {
         configured={saved.address !== ""}
         result={service.result}
         onEdit={service.edit}
-        secret="password"
+        secret="API key"
       >
         {/* Read in the same order as the edit form's fields. */}
         <Detail label="Address" subtle={!saved.address}>
           {saved.address || "None"}
         </Detail>
         <Detail label="Poll interval">{settings.pollSeconds} s</Detail>
-        <Detail label="Username" subtle={!saved.username}>
-          {saved.username || "None"}
-        </Detail>
-        <Detail label="Password" subtle>
-          {saved.hasPassword ? REDACTED : "None"}
+        <Detail label="API key" subtle>
+          {saved.hasApiKey ? REDACTED : "None"}
         </Detail>
       </ServiceCard>
       <EditDialog {...service.dialog}>
@@ -245,23 +242,17 @@ function QbittorrentCard({ saved: settings, onSaved }: CardProps) {
 function QbittorrentForm({ saved: settings, focus, onSave }: FormProps) {
   const saved = settings.qbittorrent;
   const [address, setAddress] = useState(saved.address);
-  const [username, setUsername] = useState(saved.username);
-  const [password, setPassword] = useState("");
+  const [apiKey, setApiKey] = useState("");
   const [poll, setPoll] = useState(String(settings.pollSeconds));
   const error = addressError(address);
-  const draft = { address: address.trim(), username: username.trim(), password };
+  const draft = { address: address.trim(), apiKey };
 
   return (
     <EditForm
       title="Edit qBittorrent"
       valid={!error}
-      dirty={
-        draft.address !== saved.address ||
-        draft.username !== saved.username ||
-        poll !== String(settings.pollSeconds) ||
-        password !== ""
-      }
-      test={{ values: [draft.address, draft.username, password], run: () => api.testQbittorrent(draft) }}
+      dirty={draft.address !== saved.address || poll !== String(settings.pollSeconds) || apiKey !== ""}
+      test={{ values: [draft.address, apiKey], run: () => api.testQbittorrent(draft) }}
       onSave={() => onSave({ qbittorrent: draft, pollSeconds: Number(poll) })}
     >
       <AddressField value={address} onChange={setAddress} error={error} autoFocus={focus === "address"} />
@@ -271,15 +262,11 @@ function QbittorrentForm({ saved: settings, focus, onSave }: FormProps) {
         onValueChange={setPoll}
         items={withSaved(POLL_OPTIONS, settings.pollSeconds, "s")}
       />
-      <TextField variant={FIELD_VARIANT} value={username} onChange={setUsername}>
-        <Label>Username</Label>
-        <Input />
-      </TextField>
       <SecretInput
-        label="Password"
+        label="API key"
         placeholder={KEEP_SECRET}
-        value={password}
-        onChange={setPassword}
+        value={apiKey}
+        onChange={setApiKey}
         autoFocus={focus === "secret"}
       />
     </EditForm>
