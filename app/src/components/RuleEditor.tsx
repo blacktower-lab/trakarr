@@ -184,6 +184,23 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   const options = prowlarr.data;
   const unavailable = options === undefined;
 
+  // Typing a ratio takes the rule off the buffer, and the other ratio keeps
+  // what the fields showed.
+  const typeHold = (value: number) => {
+    if (byBuffer) {
+      setByBuffer(false);
+      setRelease(BUFFER_THRESHOLDS.releaseAbove);
+    }
+    setHold(value);
+  };
+  const typeRelease = (value: number) => {
+    if (byBuffer) {
+      setByBuffer(false);
+      setHold(BUFFER_THRESHOLDS.holdBelow);
+    }
+    setRelease(value);
+  };
+
   // The indexer's current profile is where it goes back to after a release.
   const pickIndexer = (key: string) => {
     setIndexerId(key);
@@ -255,6 +272,22 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
             </TextField>
           </div>
 
+          {/* On the buffer the fields show the ratios it holds and releases at. */}
+          <div className={ROW}>
+            <RatioField
+              label={t("Hold below")}
+              value={byBuffer ? BUFFER_THRESHOLDS.holdBelow : hold}
+              onChange={typeHold}
+              error={errors.hold}
+            />
+            <RatioField
+              label={t("Release above")}
+              value={byBuffer ? BUFFER_THRESHOLDS.releaseAbove : release}
+              onChange={typeRelease}
+              error={errors.release}
+            />
+          </div>
+
           <SwitchField
             label={t("Download based on buffer")}
             description={t("Downloads only while uploaded covers them, ignoring the ratios")}
@@ -262,23 +295,6 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
             onChange={setByBuffer}
           />
 
-          {/* On the buffer the fields show the ratios it holds and releases at. */}
-          <div className={ROW}>
-            <RatioField
-              label={t("Hold below")}
-              value={byBuffer ? BUFFER_THRESHOLDS.holdBelow : hold}
-              onChange={setHold}
-              error={errors.hold}
-              isDisabled={byBuffer}
-            />
-            <RatioField
-              label={t("Release above")}
-              value={byBuffer ? BUFFER_THRESHOLDS.releaseAbove : release}
-              onChange={setRelease}
-              error={errors.release}
-              isDisabled={byBuffer}
-            />
-          </div>
           <div className="flex flex-col gap-2">
             <UsageBar rule={shown} />
             <p className="text-sm text-muted">
@@ -379,10 +395,9 @@ interface RatioFieldProps {
   value: number;
   onChange: (value: number) => void;
   error?: string;
-  isDisabled?: boolean;
 }
 
-function RatioField({ label, value, onChange, error, isDisabled }: RatioFieldProps) {
+function RatioField({ label, value, onChange, error }: RatioFieldProps) {
   return (
     <PointDecimals>
       <NumberField
@@ -393,7 +408,6 @@ function RatioField({ label, value, onChange, error, isDisabled }: RatioFieldPro
         step={0.01}
         formatOptions={RATIO_FORMAT}
         isInvalid={error !== undefined}
-        isDisabled={isDisabled}
       >
         <Label>{label}</Label>
         <NumberField.Group>
