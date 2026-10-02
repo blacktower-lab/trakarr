@@ -88,42 +88,43 @@ export function SwitchField({ label, description, isSelected, onChange, isDisabl
   );
 }
 
-// A checkbox before its label, with the description under it. It's built here
+// A checkbox before its label and description, centered on both. It's built here
 // because HeroUI's has a fixed 16px box and no size prop, at the user's request.
 // It copies HeroUI's look: the default color off, the accent on. The label wraps
-// the box, so a click on the text toggles it too.
+// the box and all the text, so a click on any of it toggles the checkbox.
 export function CheckboxField({ label, description, isSelected, onChange, isDisabled }: SwitchFieldProps) {
+  const labelId = useId();
   const descriptionId = useId();
 
   return (
-    <div className="flex flex-col gap-1">
-      <label
-        className={cx("group flex w-fit items-center gap-3", isDisabled ? "opacity-50" : "cursor-(--cursor-interactive)")}
+    <label
+      className={cx("group flex w-fit items-center gap-3", isDisabled ? "opacity-50" : "cursor-(--cursor-interactive)")}
+    >
+      <input
+        type="checkbox"
+        className="peer sr-only"
+        checked={isSelected}
+        disabled={isDisabled}
+        aria-labelledby={labelId}
+        aria-describedby={descriptionId}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span
+        aria-hidden
+        className={cx(
+          "flex size-5 shrink-0 items-center justify-center rounded-md transition-colors duration-200 peer-focus-visible:status-focused motion-reduce:transition-none",
+          isSelected ? "bg-accent text-accent-foreground group-hover:bg-accent-hover" : "bg-default",
+        )}
       >
-        <input
-          type="checkbox"
-          className="peer sr-only"
-          checked={isSelected}
-          disabled={isDisabled}
-          aria-describedby={descriptionId}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        <span
-          aria-hidden
-          className={cx(
-            "flex size-5 shrink-0 items-center justify-center rounded-md transition-colors duration-200 peer-focus-visible:status-focused motion-reduce:transition-none",
-            isSelected ? "bg-accent text-accent-foreground group-hover:bg-accent-hover" : "bg-default",
-          )}
-        >
-          {isSelected && <Check size={14} strokeWidth={3} />}
+        {isSelected && <Check size={14} strokeWidth={3} />}
+      </span>
+      <span className="flex flex-col gap-0.5 select-none">
+        <span id={labelId} className="text-sm font-medium text-foreground">
+          {label}
         </span>
-        <span className="text-sm font-medium text-foreground select-none">{label}</span>
-      </label>
-      {/* As far in as the text, past the box and its gap. */}
-      <div className="ps-8">
         <Description id={descriptionId}>{description}</Description>
-      </div>
-    </div>
+      </span>
+    </label>
   );
 }
 
