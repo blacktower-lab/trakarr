@@ -73,6 +73,10 @@ export function Settings() {
     built && settings.data ? (
       section === "system" ? (
         <GeneralCard saved={settings.data} onSaved={settings.refresh} />
+      ) : section === "time" ? (
+        <LocaleCard saved={settings.data} onSaved={settings.refresh} />
+      ) : section === "security" ? (
+        <PasswordCard />
       ) : (
         // Blocks of the same size, as many to a row as fit.
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
@@ -81,10 +85,6 @@ export function Settings() {
               <QbittorrentCard saved={settings.data} onSaved={settings.refresh} />
               <ProwlarrCard saved={settings.data} onSaved={settings.refresh} />
             </>
-          ) : section === "security" ? (
-            <PasswordCard />
-          ) : section === "time" ? (
-            <LocaleCard saved={settings.data} onSaved={settings.refresh} />
           ) : (
             <NtfyCard saved={settings.data} onSaved={settings.refresh} />
           )}
@@ -282,13 +282,13 @@ function LocaleCard({ saved, onSaved }: CardProps) {
     <SettingsCard
       body={
         <div className="flex flex-col gap-8">
-          <div className="w-full max-w-80">
+          <div className="w-full max-w-96">
             <SelectField label={t("Language")} value={language} onValueChange={changeLanguage} items={LANGUAGES} />
           </div>
-          <div className="w-full max-w-80">
+          <div className="w-full max-w-96">
             <SelectField label={t("Time zone")} value={zone} onValueChange={changeZone} items={zones} />
           </div>
-          <div className="w-full max-w-80">
+          <div className="w-full max-w-96">
             <SelectField
               label={t("Clock")}
               value={clock}
