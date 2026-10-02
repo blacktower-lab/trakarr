@@ -1,6 +1,7 @@
 import { Card, EmptyState, Spinner } from "@heroui/react";
 import { CircleAlert, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import { useT } from "../lib/prefs";
 
 interface ViewProps {
   // An icon, or a spinner while loading.
@@ -32,8 +33,9 @@ export function Empty({ icon: Icon, title, description }: { icon: LucideIcon; ti
 
 // What a page shows until its first load ends: why it failed, or that it's loading.
 export function Pending({ error }: { error: Error | undefined }) {
+  const t = useT();
   if (error) return <Empty icon={CircleAlert} title={error.message} />;
-  return <View media={<Spinner size="md" color="current" />} title="Loading" />;
+  return <View media={<Spinner size="md" color="current" />} title={t("Loading")} />;
 }
 
 interface ListedProps {

@@ -2,6 +2,7 @@ import { Button, Card, FieldError, Form, Input, Label, TextField } from "@heroui
 import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import "../../../assets/wordmark.css";
 import { api, type Session } from "../lib/api";
+import { useT } from "../lib/prefs";
 import { FIELD_VARIANT } from "./Form";
 import { Logo } from "./Logo";
 
@@ -44,6 +45,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 function SignIn({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
+  const t = useT();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
@@ -83,12 +85,12 @@ function SignIn({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
                     isInvalid={error !== undefined}
                     autoFocus
                   >
-                    <Label>Password</Label>
+                    <Label>{t("Password")}</Label>
                     <Input type="password" autoComplete="current-password" />
                     <FieldError>{error}</FieldError>
                   </TextField>
                   <Button type="submit" isDisabled={password === "" || busy}>
-                    Sign in
+                    {t("Sign in")}
                   </Button>
                 </div>
               </Form>

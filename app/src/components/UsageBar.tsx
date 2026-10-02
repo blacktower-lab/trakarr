@@ -1,6 +1,7 @@
 import { Label, ProgressBar, Tooltip } from "@heroui/react";
 import { cx } from "../lib/cx";
-import { formatGB, formatLeft, limitOf, usageOf, type Rule } from "../lib/data";
+import { limitOf, usageOf, type Rule } from "../lib/data";
+import { useFormat, useT } from "../lib/prefs";
 import { FLAME_COLOR, Flames } from "./Flames";
 
 type Level = "ok" | "near" | "held";
@@ -29,6 +30,8 @@ interface UsageBarProps {
 // Only an enabled rule has colors. A tracker with no rule is only measured, so
 // its bar is faded too.
 export function UsageBar({ rule, faded = false, limited = true, freeleechLeft = 0 }: UsageBarProps) {
+  const t = useT();
+  const format = useFormat();
   if (freeleechLeft > 0) return <FreeleechBox left={freeleechLeft} faded={faded} />;
 
   const held = rule.enabled && rule.state === "held";
@@ -50,9 +53,11 @@ export function UsageBar({ rule, faded = false, limited = true, freeleechLeft = 
           {/* The label only has what's downloaded, so the tooltip has the limit. */}
           <Tooltip>
             <Tooltip.Trigger>
-              <span className="cursor-help">{formatGB(rule.downloadedGiB)}</span>
+              <span className="cursor-help">{format.gb(rule.downloadedGiB)}</span>
             </Tooltip.Trigger>
-            <Tooltip.Content>{limited ? `Max ${formatGB(limit)} to keep the ratio` : "No rule, so no limit"}</Tooltip.Content>
+            <Tooltip.Content>
+              {limited ? t("Max {size} to keep the ratio", { size: format.gb(limit) }) : t("No rule, so no limit")}
+            </Tooltip.Content>
           </Tooltip>
         </Label>
         <ProgressBar.Output />
@@ -78,6 +83,8 @@ export function UsageBar({ rule, faded = false, limited = true, freeleechLeft = 
 // freeleech still runs, in white and centered, on the flames' own red, all at
 // the user's request. The wrapper keeps the flames behind it.
 function FreeleechBox({ left, faded }: { left: number; faded: boolean }) {
+  const t = useT();
+  const format = useFormat();
   return (
     <div className={cx("isolate", faded && "opacity-40")}>
       <Flames>
@@ -87,9 +94,9 @@ function FreeleechBox({ left, faded }: { left: number; faded: boolean }) {
         >
           <Tooltip>
             <Tooltip.Trigger>
-              <span className="cursor-help">{formatLeft(left)} left</span>
+              <span className="cursor-help">{t("{time} left", { time: format.left(left) })}</span>
             </Tooltip.Trigger>
-            <Tooltip.Content>Downloads don't count during the freeleech</Tooltip.Content>
+            <Tooltip.Content>{t("Downloads don't count during the freeleech")}</Tooltip.Content>
           </Tooltip>
         </div>
       </Flames>

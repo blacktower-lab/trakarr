@@ -1,7 +1,19 @@
-import { Button, Description, FieldError, InputGroup, Label, ListBox, Select, Switch, TextField } from "@heroui/react";
+import {
+  Button,
+  Description,
+  FieldError,
+  I18nProvider,
+  InputGroup,
+  Label,
+  ListBox,
+  Select,
+  Switch,
+  TextField,
+} from "@heroui/react";
 import { Check, Eye, EyeOff } from "lucide-react";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { cx } from "../lib/cx";
+import { useT } from "../lib/prefs";
 
 // HeroUI's dialog examples give their fields the secondary variant, which fills
 // them so they show on the dialog's surface. Fields on a card get it too.
@@ -10,6 +22,13 @@ export const FIELD_VARIANT = "secondary";
 // Two equal columns shared by form rows. They follow the form's width, not the
 // screen's, because dialogs are narrower than most screens.
 export const ROW = "grid grid-cols-1 items-start gap-x-3 gap-y-4 @md:grid-cols-2";
+
+// Wraps a number field that takes decimals, so it's typed and shown with a point
+// in every language. In Spanish a point separates thousands, which would read a
+// typed 0.9 as 9, and the numbers around the field have points too.
+export function PointDecimals({ children }: { children: ReactNode }) {
+  return <I18nProvider locale="en-US">{children}</I18nProvider>;
+}
 
 // A labeled single select over a fixed set of options.
 export function SelectField({
@@ -139,6 +158,7 @@ interface SecretInputProps {
 
 // A password field with a button that shows or hides what was typed.
 export function SecretInput({ label, placeholder, value, onChange, autoFocus, error }: SecretInputProps) {
+  const t = useT();
   const [shown, setShown] = useState(false);
   const Icon = shown ? EyeOff : Eye;
 
@@ -158,7 +178,7 @@ export function SecretInput({ label, placeholder, value, onChange, autoFocus, er
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label={shown ? "Hide" : "Show"}
+            aria-label={shown ? t("Hide") : t("Show")}
             onPress={() => setShown((s) => !s)}
           >
             <Icon aria-hidden />

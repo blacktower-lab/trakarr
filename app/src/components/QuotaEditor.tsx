@@ -1,8 +1,10 @@
 import { Button, FieldError, Label, Modal, NumberField, Separator } from "@heroui/react";
 import { useState } from "react";
 import type { QuotaChange } from "../lib/api";
-import { formatGiB, formatLeft, formatRatio, freeleechLeft, ratioOf, toBytes, type TrackerRow } from "../lib/data";
-import { FIELD_VARIANT, SwitchField } from "./Form";
+import { freeleechLeft, ratioOf, toBytes, type TrackerRow } from "../lib/data";
+import { rich } from "../lib/i18n";
+import { useFormat, useT } from "../lib/prefs";
+import { FIELD_VARIANT, PointDecimals, SwitchField } from "./Form";
 import { Value } from "./RuleEditor";
 
 interface QuotaEditorProps {
@@ -37,6 +39,8 @@ const GIB_FORMAT = { maximumFractionDigits: 2 };
 const HOURS_FORMAT = { style: "unit", unit: "hour", unitDisplay: "long" } as const;
 
 function QuotaForm({ tracker, onSave }: { tracker: TrackerRow; onSave: (change: QuotaChange) => Promise<void> }) {
+  const t = useT();
+  const format = useFormat();
   // NaN while the field is empty.
   const [add, setAdd] = useState(NaN);
   const left = freeleechLeft(tracker.freeleech);
@@ -49,10 +53,11 @@ function QuotaForm({ tracker, onSave }: { tracker: TrackerRow; onSave: (change: 
   // Hours only matter for a freeleech that starts on save.
   const starts = freeleech && !running;
   const errors = {
-    add: tracker.boughtGiB + added < 0 ? `Only ${formatGiB(tracker.boughtGiB)} was bought` : undefined,
+    add:
+      tracker.boughtGiB + added < 0 ? t("Only {size} was bought", { size: format.gib(tracker.boughtGiB) }) : undefined,
     hours:
       starts && !(Number.isInteger(hours) && hours >= 1 && hours <= MAX_FREELEECH_HOURS)
-        ? `Enter 1 to ${MAX_FREELEECH_HOURS} hours`
+        ? t("Enter 1 to {max} hours", { max: MAX_FREELEECH_HOURS })
         : undefined,
   };
   const valid = Object.values(errors).every((e) => e === undefined);
@@ -64,10 +69,10 @@ function QuotaForm({ tracker, onSave }: { tracker: TrackerRow; onSave: (change: 
   const changed = Object.keys(change).length > 0;
 
   // What the ratio becomes with what's added, once it can be saved.
-  const ratio = formatRatio(ratioOf(tracker));
+  const ratio = format.ratio(ratioOf(tracker));
   const next = errors.add
     ? ratio
-    : formatRatio(ratioOf({ uploadedGiB: tracker.uploadedGiB + added, downloadedGiB: tracker.downloadedGiB }));
+    : format.ratio(ratioOf({ uploadedGiB: tracker.uploadedGiB + added, downloadedGiB: tracker.downloadedGiB }));
 
   const save = async () => {
     setSaving(true);
@@ -82,39 +87,37 @@ function QuotaForm({ tracker, onSave }: { tracker: TrackerRow; onSave: (change: 
     <>
       <Modal.CloseTrigger />
       <Modal.Header>
-        <Modal.Heading>Change quota · {tracker.name}</Modal.Heading>
+        <Modal.Heading>{t("Change quota · {name}", { name: tracker.name })}</Modal.Heading>
       </Modal.Header>
 
       <Modal.Body>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted">
-              Bought so far <Value>{formatGiB(tracker.boughtGiB)}</Value>
+              {rich(t, "Bought so far {size}", { size: <Value>{format.gib(tracker.boughtGiB)}</Value> })}
             </p>
-            <NumberField
-              variant={FIELD_VARIANT}
-              value={add}
-              onChange={setAdd}
-              step={1}
-              formatOptions={GIB_FORMAT}
-              isInvalid={errors.add !== undefined}
-            >
-              <Label>Add upload (GiB)</Label>
-              <NumberField.Group>
-                <NumberField.DecrementButton />
-                <NumberField.Input placeholder="0" />
-                <NumberField.IncrementButton />
-              </NumberField.Group>
-              <FieldError>{errors.add}</FieldError>
-            </NumberField>
+            <PointDecimals>
+              <NumberField
+                variant={FIELD_VARIANT}
+                value={add}
+                onChange={setAdd}
+                step={1}
+                formatOptions={GIB_FORMAT}
+                isInvalid={errors.add !== undefined}
+              >
+                <Label>{t("Add upload (GiB)")}</Label>
+                <NumberField.Group>
+                  <NumberField.DecrementButton />
+                  <NumberField.Input placeholder="0" />
+                  <NumberField.IncrementButton />
+                </NumberField.Group>
+                <FieldError>{errors.add}</FieldError>
+              </NumberField>
+            </PointDecimals>
             <p className="text-sm text-muted">
-              Ratio <Value>{ratio}</Value>
-              {next !== ratio && (
-                <>
-                  {" "}
-                  → <Value>{next}</Value>
-                </>
-              )}
+              {next === ratio
+                ? rich(t, "Ratio {ratio}", { ratio: <Value>{ratio}</Value> })
+                : rich(t, "Ratio {ratio} → {next}", { ratio: <Value>{ratio}</Value>, next: <Value>{next}</Value> })}
             </p>
           </div>
 
@@ -122,13 +125,13 @@ function QuotaForm({ tracker, onSave }: { tracker: TrackerRow; onSave: (change: 
 
           <div className="flex flex-col gap-4">
             <SwitchField
-              label="Freeleech"
+              label={t("Freeleech")}
               description={
                 running
                   ? freeleech
-                    ? `Ends in ${formatLeft(left)}`
-                    : "Ends when saved"
-                  : "Downloads don't count and nothing is held"
+                    ? t("Ends in {time}", { time: format.left(left) })
+                    : t("Ends when saved")
+                  : t("Downloads don't count and nothing is held")
               }
               isSelected={freeleech}
               onChange={setFreeleech}
@@ -144,7 +147,7 @@ function QuotaForm({ tracker, onSave }: { tracker: TrackerRow; onSave: (change: 
                 formatOptions={HOURS_FORMAT}
                 isInvalid={errors.hours !== undefined}
               >
-                <Label>Duration</Label>
+                <Label>{t("Duration")}</Label>
                 <NumberField.Group>
                   <NumberField.DecrementButton />
                   <NumberField.Input />
@@ -159,10 +162,10 @@ function QuotaForm({ tracker, onSave }: { tracker: TrackerRow; onSave: (change: 
 
       <Modal.Footer>
         <Button slot="close" variant="secondary">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button isDisabled={!valid || !changed || saving} onPress={save}>
-          Save
+          {t("Save")}
         </Button>
       </Modal.Footer>
     </>

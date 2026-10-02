@@ -1,5 +1,6 @@
-// What the pages share: the rule type the UI works with, and the formatting
-// and formulas behind its numbers. Sizes are in GiB to keep the numbers readable.
+// What the pages share: the rule type the UI works with, and the formulas
+// behind its numbers, which format.ts shows. Sizes are in GiB to keep the
+// numbers readable.
 //   ratio      = uploaded / downloaded
 //   budget     = uploaded / holdBelow - downloaded
 //   to release = releaseAbove * downloaded - uploaded
@@ -201,64 +202,6 @@ export function toReleaseOf(rule: Rule): number {
 // the server drops it.
 export function freeleechLeft(freeleech: Freeleech | null, now = Date.now()): number {
   return freeleech ? Math.max(0, freeleech.until - now) : 0;
-}
-
-// Time left in its two largest units: "23h 10m", "45m", under a minute "<1m".
-export function formatLeft(ms: number): string {
-  const minutes = Math.floor(ms / 60_000);
-  if (minutes < 1) return "<1m";
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return minutes % 60 ? `${hours}h ${minutes % 60}m` : `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return hours % 24 ? `${days}d ${hours % 24}h` : `${days}d`;
-}
-
-function formatSize(gib: number, gibUnit: string, tibUnit: string): string {
-  if (gib === 0) return "0 B";
-  if (gib >= 1024) return `${(gib / 1024).toFixed(2)} ${tibUnit}`;
-  return `${gib.toFixed(1)} ${gibUnit}`;
-}
-
-export function formatGiB(gib: number): string {
-  return formatSize(gib, "GiB", "TiB");
-}
-
-// The same sizes in the units people say them in, as the Downloaded column does.
-export function formatGB(gib: number): string {
-  return formatSize(gib, "GB", "TB");
-}
-
-// Compact relative time in its largest whole unit: "35m ago", "1h ago", "2d ago".
-export function formatAgo(minutes: number): string {
-  if (minutes < 60) return `${minutes}m ago`;
-  if (minutes < 60 * 24) return `${Math.floor(minutes / 60)}h ago`;
-  return `${Math.floor(minutes / (60 * 24))}d ago`;
-}
-
-export function formatRatio(ratio: number): string {
-  return Number.isFinite(ratio) ? ratio.toFixed(2) : "∞";
-}
-
-const pad = (n: number, width = 2) => String(n).padStart(width, "0");
-
-// When an event happened: the time today, then "Yesterday", then the date.
-export function formatWhen(at: number, now = new Date()): string {
-  const date = new Date(at);
-  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
-  if (days <= 0) return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
-  if (days === 1) return "Yesterday";
-  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
-
-function startOfDay(date: Date): number {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
-}
-
-// The time of day of a log line, to the millisecond.
-export function formatTime(at: number): string {
-  const date = new Date(at);
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
 }
 
 export function minutesSince(at: number): number {

@@ -5,12 +5,8 @@ import { Listed } from "../components/Empty";
 import { RowActions, type RowAction } from "../components/RowActions";
 import { ACTIONS } from "../components/RuleEditor";
 import { Section } from "../components/Section";
-import { formatRatio, type Rule } from "../lib/data";
-
-const ACTION_ITEMS: RowAction[] = [
-  { id: "edit", label: "Edit rule", icon: Pencil },
-  { id: "delete", label: "Delete rule", icon: Trash2, danger: true },
-];
+import type { Rule } from "../lib/data";
+import { useFormat, useT } from "../lib/prefs";
 
 interface RulesProps {
   // Undefined until the first poll ends.
@@ -22,6 +18,12 @@ interface RulesProps {
 }
 
 export function Rules({ rules, error, onNew, onEdit, onDelete }: RulesProps) {
+  const t = useT();
+  const format = useFormat();
+  const actionItems: RowAction[] = [
+    { id: "edit", label: t("Edit rule"), icon: Pencil },
+    { id: "delete", label: t("Delete rule"), icon: Trash2, danger: true },
+  ];
   // The rule being deleted stays set while the dialog animates closed.
   const [deleting, setDeleting] = useState<Rule | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -34,10 +36,10 @@ export function Rules({ rules, error, onNew, onEdit, onDelete }: RulesProps) {
   return (
     <>
       <Section
-        title="Rules"
+        title={t("Rules")}
         action={
           <Button variant="ghost" size="sm" onPress={onNew}>
-            New rule
+            {t("New rule")}
           </Button>
         }
       >
@@ -46,19 +48,19 @@ export function Rules({ rules, error, onNew, onEdit, onDelete }: RulesProps) {
           error={error}
           count={rules?.length ?? 0}
           icon={SlidersHorizontal}
-          empty={{ title: "No rules yet", description: "Add a rule to watch a tracker's ratio" }}
+          empty={{ title: t("No rules yet"), description: t("Add a rule to watch a tracker's ratio") }}
         >
           <Table>
             <Table.ScrollContainer>
-              <Table.Content aria-label="Rules">
+              <Table.Content aria-label={t("Rules")}>
                 <Table.Header>
-                  <Table.Column isRowHeader>Rule</Table.Column>
-                  <Table.Column>Matches</Table.Column>
-                  <Table.Column>Hold below</Table.Column>
-                  <Table.Column>Release above</Table.Column>
-                  <Table.Column>When held</Table.Column>
-                  <Table.Column textValue="Actions">
-                    <span className="sr-only">Actions</span>
+                  <Table.Column isRowHeader>{t("Rule")}</Table.Column>
+                  <Table.Column>{t("Matches")}</Table.Column>
+                  <Table.Column>{t("Hold below")}</Table.Column>
+                  <Table.Column>{t("Release above")}</Table.Column>
+                  <Table.Column>{t("When held")}</Table.Column>
+                  <Table.Column textValue={t("Actions")}>
+                    <span className="sr-only">{t("Actions")}</span>
                   </Table.Column>
                 </Table.Header>
                 <Table.Body>
@@ -67,17 +69,17 @@ export function Rules({ rules, error, onNew, onEdit, onDelete }: RulesProps) {
                       <Table.Cell>
                         <span className="inline-flex items-center gap-2.5">
                           <span className="font-medium">{rule.name}</span>
-                          {!rule.enabled && <span className="text-muted">paused</span>}
+                          {!rule.enabled && <span className="text-muted">{t("paused")}</span>}
                         </span>
                       </Table.Cell>
                       <Table.Cell>{[...rule.tags, ...rule.domains].join(", ")}</Table.Cell>
-                      <Table.Cell>{formatRatio(rule.holdBelow)}</Table.Cell>
-                      <Table.Cell>{formatRatio(rule.releaseAbove)}</Table.Cell>
-                      <Table.Cell>{ACTIONS[rule.action].label}</Table.Cell>
+                      <Table.Cell>{format.ratio(rule.holdBelow)}</Table.Cell>
+                      <Table.Cell>{format.ratio(rule.releaseAbove)}</Table.Cell>
+                      <Table.Cell>{t(ACTIONS[rule.action].label)}</Table.Cell>
                       <Table.Cell>
                         <RowActions
-                          label={`Actions for ${rule.name}`}
-                          items={ACTION_ITEMS}
+                          label={t("Actions for {name}", { name: rule.name })}
+                          items={actionItems}
                           onAction={(id) => (id === "edit" ? onEdit(rule) : ask(rule))}
                         />
                       </Table.Cell>
@@ -94,17 +96,17 @@ export function Rules({ rules, error, onNew, onEdit, onDelete }: RulesProps) {
         <AlertDialog.Container>
           <AlertDialog.Dialog>
             <AlertDialog.Header>
-              <AlertDialog.Heading>Delete {deleting?.name}?</AlertDialog.Heading>
+              <AlertDialog.Heading>{t("Delete {name}?", { name: deleting?.name ?? "" })}</AlertDialog.Heading>
             </AlertDialog.Header>
             <AlertDialog.Body>
-              <p>Any downloads it holds are released.</p>
+              <p>{t("Any downloads it holds are released.")}</p>
             </AlertDialog.Body>
             <AlertDialog.Footer>
               <Button slot="close" variant="secondary">
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button slot="close" variant="danger" onPress={() => deleting && onDelete(deleting)}>
-                Delete
+                {t("Delete")}
               </Button>
             </AlertDialog.Footer>
           </AlertDialog.Dialog>

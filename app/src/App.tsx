@@ -44,13 +44,11 @@ import {
   type TrakarrEvent,
 } from "./lib/api";
 import { cx } from "./lib/cx";
+import { LOCALES, msg } from "./lib/i18n";
+import { PrefsProvider, SettingsProvider, useFormat, usePrefs, useT } from "./lib/prefs";
 import {
   budgetOf,
   filterTrackers,
-  formatAgo,
-  formatGiB,
-  formatRatio,
-  formatWhen,
   freeleechLeft,
   gaugeOf,
   mergeRules,
@@ -71,21 +69,33 @@ import { Settings } from "./pages/Settings";
 type Page = "dashboard" | "rules" | "logs" | "settings";
 
 const PAGES: Record<Page, PageMenuItem> = {
-  dashboard: { label: "Dashboard", icon: LayoutDashboard },
-  rules: { label: "Rules", icon: SlidersHorizontal },
-  logs: { label: "Logs", icon: ScrollText },
-  settings: { label: "Settings", icon: SettingsIcon },
+  dashboard: { label: msg("Dashboard"), icon: LayoutDashboard },
+  rules: { label: msg("Rules"), icon: SlidersHorizontal },
+  logs: { label: msg("Logs"), icon: ScrollText },
+  settings: { label: msg("Settings"), icon: SettingsIcon },
 };
 
 const PAGE_X = "px-4 md:px-8 lg:px-10";
 
 export function App() {
   return (
-    // The UI is in English, so HeroUI's number fields format ratios the same
-    // way the rest of the page does, whatever the browser's language.
-    <I18nProvider locale="en-US">
+    <PrefsProvider>
+      <Localized />
+    </PrefsProvider>
+  );
+}
+
+function Localized() {
+  const { prefs } = usePrefs();
+
+  return (
+    // HeroUI's own text and number fields follow the chosen language, so ratios
+    // are shown and typed the way the rest of the page shows them.
+    <I18nProvider locale={LOCALES[prefs.language]}>
       <AuthGate>
-        <Shell />
+        <SettingsProvider>
+          <Shell />
+        </SettingsProvider>
       </AuthGate>
       <Toast.Provider />
     </I18nProvider>
@@ -110,6 +120,7 @@ const FADED = "opacity-40";
 type SortDescriptor = NonNullable<Table["ContentProps"]["sortDescriptor"]>;
 
 function Shell() {
+  const t = useT();
   const [page, setPage] = useState<Page>("dashboard");
   // The only poll: the rules, their live numbers and the recent events come
   // together, and everything below reads from them.
@@ -138,23 +149,23 @@ function Shell() {
     try {
       await (rule ? api.updateRule(rule.id, fields) : api.createRule(fields));
     } catch (error) {
-      toast.danger(`Couldn't save ${fields.name}`, { description: (error as Error).message });
+      toast.danger(t("Couldn't save {name}", { name: fields.name }), { description: (error as Error).message });
       return;
     }
     setEditorOpen(false);
     live.refresh();
-    toast.success(`${fields.name} ${rule ? "saved" : "added"}`);
+    toast.success(rule ? t("{name} saved", { name: fields.name }) : t("{name} added", { name: fields.name }));
   };
 
   const deleteRule = async (rule: Rule) => {
     try {
       await api.deleteRule(rule.id);
     } catch (error) {
-      toast.danger(`Couldn't delete ${rule.name}`, { description: (error as Error).message });
+      toast.danger(t("Couldn't delete {name}", { name: rule.name }), { description: (error as Error).message });
       return;
     }
     live.refresh();
-    toast(`${rule.name} deleted`);
+    toast(t("{name} deleted", { name: rule.name }));
   };
 
   // The tracker whose quota is being changed.
@@ -173,12 +184,12 @@ function Shell() {
     try {
       await api.updateTracker(domain, change);
     } catch (error) {
-      toast.danger(`Couldn't change ${domain}'s quota`, { description: (error as Error).message });
+      toast.danger(t("Couldn't change {domain}'s quota", { domain }), { description: (error as Error).message });
       return;
     }
     setQuotaOpen(false);
     live.refresh();
-    toast.success(`${domain} quota saved`);
+    toast.success(t("{domain} quota saved", { domain }));
   };
 
   const togglePin = async (tracker: TrackerRow) => {
@@ -188,11 +199,13 @@ function Shell() {
     try {
       await api.updateTracker(domain, { pinned });
     } catch (error) {
-      toast.danger(`Couldn't ${pinned ? "pin" : "unpin"} ${domain}`, { description: (error as Error).message });
+      toast.danger(pinned ? t("Couldn't pin {domain}", { domain }) : t("Couldn't unpin {domain}", { domain }), {
+        description: (error as Error).message,
+      });
       return;
     }
     live.refresh();
-    toast(`${domain} ${pinned ? "pinned" : "unpinned"}`);
+    toast(pinned ? t("{domain} pinned", { domain }) : t("{domain} unpinned", { domain }));
   };
 
   const toggleEnabled = async (rule: Rule) => {
@@ -200,11 +213,14 @@ function Shell() {
     try {
       await api.updateRule(rule.id, { enabled });
     } catch (error) {
-      toast.danger(`Couldn't ${enabled ? "resume" : "pause"} ${rule.name}`, { description: (error as Error).message });
+      toast.danger(
+        enabled ? t("Couldn't resume {name}", { name: rule.name }) : t("Couldn't pause {name}", { name: rule.name }),
+        { description: (error as Error).message },
+      );
       return;
     }
     live.refresh();
-    toast(`${rule.name} ${enabled ? "resumed" : "paused"}`);
+    toast(enabled ? t("{name} resumed", { name: rule.name }) : t("{name} paused", { name: rule.name }));
   };
 
   return (
@@ -222,7 +238,7 @@ function Shell() {
           </div>
         </div>
         <div className={cx("mx-auto max-w-[1400px] pt-6", PAGE_X)}>
-          <PageMenu label="Pages" items={PAGES} current={page} onSelect={setPage} />
+          <PageMenu label={t("Pages")} items={PAGES} current={page} onSelect={setPage} />
         </div>
       </header>
 
@@ -270,6 +286,7 @@ function Shell() {
 // Whether trakarr reaches qBittorrent. Its address and how fresh the numbers
 // are sit in the tooltip.
 function QbittorrentStatus({ status, error }: { status: Status | undefined; error: Error | undefined }) {
+  const t = useT();
   if (error) return <StatusText color="bg-danger">{error.message}</StatusText>;
   if (!status) {
     return (
@@ -277,7 +294,7 @@ function QbittorrentStatus({ status, error }: { status: Status | undefined; erro
         <Tooltip.Trigger>
           <StatusText color="bg-foreground/30" />
         </Tooltip.Trigger>
-        <Tooltip.Content>Connecting</Tooltip.Content>
+        <Tooltip.Content>{t("Connecting")}</Tooltip.Content>
       </Tooltip>
     );
   }
@@ -287,7 +304,9 @@ function QbittorrentStatus({ status, error }: { status: Status | undefined; erro
     ? [
         qbittorrent.address,
         qbittorrent.lastUpdate !== null &&
-          `updated ${Math.max(0, Math.round((Date.now() - qbittorrent.lastUpdate) / 1000))} s ago`,
+          t("updated {seconds} s ago", {
+            seconds: Math.max(0, Math.round((Date.now() - qbittorrent.lastUpdate) / 1000)),
+          }),
       ]
     : [qbittorrent.address, qbittorrent.message];
 
@@ -325,6 +344,8 @@ interface DashboardProps {
 }
 
 function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onShowLogs, onToggleEnabled }: DashboardProps) {
+  const t = useT();
+  const format = useFormat();
   const rules = live?.rules ?? [];
   // In their usual order until a column is sorted.
   const [sort, setSort] = useState<SortDescriptor>();
@@ -343,14 +364,14 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
   return (
     <div className="flex flex-col gap-10">
       <Section
-        title="Trackers"
+        title={t("Trackers")}
         action={
           rows.length > 0 && (
             // The input won't shrink below its own width, which is larger on a
             // phone, so anything narrower clips the clear button.
             <div className="w-64">
               <SearchField
-                aria-label="Filter trackers"
+                aria-label={t("Filter trackers")}
                 fullWidth
                 value={search}
                 onChange={(value) => {
@@ -360,7 +381,7 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
               >
                 <SearchField.Group>
                   <SearchField.SearchIcon />
-                  <SearchField.Input placeholder="Filter by name" />
+                  <SearchField.Input placeholder={t("Filter by name")} />
                   <SearchField.ClearButton />
                 </SearchField.Group>
               </SearchField>
@@ -376,12 +397,12 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
           // With trackers in the list, an empty one means the search left none.
           empty={
             rows.length > 0
-              ? { title: "No matching trackers", description: "Try another name" }
+              ? { title: t("No matching trackers"), description: t("Try another name") }
               : {
-                  title: "No trackers yet",
+                  title: t("No trackers yet"),
                   description: live?.status.qbittorrent.ok
-                    ? "qBittorrent has no torrents"
-                    : "They show up once qBittorrent connects",
+                    ? t("qBittorrent has no torrents")
+                    : t("They show up once qBittorrent connects"),
                 }
           }
         >
@@ -389,7 +410,7 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
             {/* Sizes the columns from their widths, so sorting never moves them. */}
             <Table.ResizableContainer>
               <Table.Content
-                aria-label="Trackers"
+                aria-label={t("Trackers")}
                 sortDescriptor={sort}
                 onSortChange={(next) => {
                   setSort(next);
@@ -398,19 +419,19 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
               >
                 <Table.Header>
                   <SortableColumn id="name" isRowHeader width="1fr" minWidth={260}>
-                    Tracker
+                    {t("Tracker")}
                   </SortableColumn>
-                  <SortableColumn id="ratio" width={120} hint="Uploaded over downloaded">
-                    Ratio
+                  <SortableColumn id="ratio" width={120} hint={t("Uploaded over downloaded")}>
+                    {t("Ratio")}
                   </SortableColumn>
-                  <SortableColumn id="downloaded" width={360} hint="Downloaded against what its upload allows">
-                    Downloaded
+                  <SortableColumn id="downloaded" width={360} hint={t("Downloaded against what its upload allows")}>
+                    {t("Downloaded")}
                   </SortableColumn>
-                  <SortableColumn id="buffer" width={180} hint="Left before the next hold or release">
-                    Buffer
+                  <SortableColumn id="buffer" width={180} hint={t("Left before the next hold or release")}>
+                    {t("Buffer")}
                   </SortableColumn>
-                  <Table.Column textValue="Actions" width={72}>
-                    <span className="sr-only">Actions</span>
+                  <Table.Column textValue={t("Actions")} width={72}>
+                    <span className="sr-only">{t("Actions")}</span>
                   </Table.Column>
                 </Table.Header>
                 <Table.Body>
@@ -470,7 +491,7 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
             {trackers.length > TRACKERS_PER_PAGE && (
               <Table.Footer>
                 <Pager
-                  label="Trackers pages"
+                  label={t("Trackers pages")}
                   page={page}
                   pageSize={TRACKERS_PER_PAGE}
                   total={trackers.length}
@@ -482,22 +503,22 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
         </Listed>
       </Section>
 
-      <Section title="Held torrents">
+      <Section title={t("Held torrents")}>
         <Listed
           loaded={!!live}
           error={error}
           count={held.length}
           icon={CircleCheck}
-          empty={{ title: "Nothing is held", description: "Downloads a rule holds show up here" }}
+          empty={{ title: t("Nothing is held"), description: t("Downloads a rule holds show up here") }}
         >
           <Table>
             <Table.ScrollContainer>
-              <Table.Content aria-label="Held torrents">
+              <Table.Content aria-label={t("Held torrents")}>
                 <Table.Header>
-                  <Table.Column isRowHeader>Torrent</Table.Column>
-                  <Table.Column>Tracker</Table.Column>
-                  <Table.Column>Progress</Table.Column>
-                  <Table.Column>Held</Table.Column>
+                  <Table.Column isRowHeader>{t("Torrent")}</Table.Column>
+                  <Table.Column>{t("Tracker")}</Table.Column>
+                  <Table.Column>{t("Progress")}</Table.Column>
+                  <Table.Column>{t("Held")}</Table.Column>
                 </Table.Header>
                 <Table.Body>
                   {held.map((torrent) => (
@@ -505,7 +526,7 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
                       <Table.Cell>{torrent.name}</Table.Cell>
                       <Table.Cell>{rules.find((r) => r.id === torrent.ruleId)?.name ?? "—"}</Table.Cell>
                       <Table.Cell>{progressOf(torrent)}</Table.Cell>
-                      <Table.Cell>{formatAgo(minutesSince(torrent.at))}</Table.Cell>
+                      <Table.Cell>{format.ago(minutesSince(torrent.at))}</Table.Cell>
                     </Table.Row>
                   ))}
                 </Table.Body>
@@ -516,10 +537,10 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
       </Section>
 
       <Section
-        title="Recent events"
+        title={t("Recent events")}
         action={
           <Button variant="ghost" size="sm" onPress={onShowLogs}>
-            Open logs
+            {t("Open logs")}
           </Button>
         }
       >
@@ -528,19 +549,19 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
           error={error}
           count={events.length}
           icon={History}
-          empty={{ title: "No events yet", description: "Holds, releases and changes show up here" }}
+          empty={{ title: t("No events yet"), description: t("Holds, releases and changes show up here") }}
         >
           <Table>
             <Table.ScrollContainer>
-              <Table.Content aria-label="Recent events">
+              <Table.Content aria-label={t("Recent events")}>
                 <Table.Header>
-                  <Table.Column>Time</Table.Column>
-                  <Table.Column isRowHeader>Event</Table.Column>
+                  <Table.Column>{t("Time")}</Table.Column>
+                  <Table.Column isRowHeader>{t("Event")}</Table.Column>
                 </Table.Header>
                 <Table.Body>
                   {events.map((event) => (
                     <Table.Row key={event.id} id={event.id}>
-                      <Table.Cell>{formatWhen(event.at)}</Table.Cell>
+                      <Table.Cell>{format.when(event.at)}</Table.Cell>
                       <Table.Cell>
                         <span className="inline-flex items-center gap-2.5">
                           <EventDot kind={event.kind} />
@@ -577,6 +598,7 @@ interface SortableColumnProps {
 // sorted column points up or down, like HeroUI's does; the others show that they
 // can be sorted. All take the same room, so nothing shifts when the sort moves.
 function SortableColumn({ id, isRowHeader, width, minWidth, hint, children }: SortableColumnProps) {
+  const t = useT();
   return (
     <Table.Column id={id} isRowHeader={isRowHeader} allowsSorting textValue={children} width={width} minWidth={minWidth}>
       {({ sortDirection }) => (
@@ -598,7 +620,7 @@ function SortableColumn({ id, isRowHeader, width, minWidth, hint, children }: So
             {children}
             {hint && (
               <Tooltip>
-                <Tooltip.Trigger aria-label={`About ${children}`}>
+                <Tooltip.Trigger aria-label={t("About {name}", { name: children })}>
                   <CircleQuestionMark aria-hidden size={12} className="text-muted" />
                 </Tooltip.Trigger>
                 <Tooltip.Content>{hint}</Tooltip.Content>
@@ -623,27 +645,28 @@ interface TrackerActionsProps {
 // A tracker's menu: its rule's actions, or one to start a rule on its domain,
 // and its quota and pin. A rule's own row has no domain, so neither.
 function TrackerActions({ tracker, onEdit, onNew, onChangeQuota, onTogglePin, onToggleEnabled }: TrackerActionsProps) {
+  const t = useT();
   const { rule } = tracker;
   const perDomain: RowAction[] = tracker.domain
     ? [
-        { id: "quota", label: "Change quota", icon: Coins },
+        { id: "quota", label: t("Change quota"), icon: Coins },
         tracker.pinned
-          ? { id: "pin", label: "Unpin tracker", icon: PinOff }
-          : { id: "pin", label: "Pin tracker", icon: Pin },
+          ? { id: "pin", label: t("Unpin tracker"), icon: PinOff }
+          : { id: "pin", label: t("Pin tracker"), icon: Pin },
       ]
     : [];
   const items: RowAction[] = rule
     ? [
-        { id: "edit", label: "Edit rule", icon: Pencil },
+        { id: "edit", label: t("Edit rule"), icon: Pencil },
         ...perDomain,
         {
           id: "toggle",
-          label: rule.enabled ? "Pause rule" : "Resume rule",
+          label: rule.enabled ? t("Pause rule") : t("Resume rule"),
           icon: rule.enabled ? Pause : Play,
           danger: rule.enabled,
         },
       ]
-    : [{ id: "add", label: "Add rule", icon: Plus }, ...perDomain];
+    : [{ id: "add", label: t("Add rule"), icon: Plus }, ...perDomain];
 
   const act = (id: string) => {
     if (id === "quota") onChangeQuota(tracker);
@@ -660,7 +683,7 @@ function TrackerActions({ tracker, onEdit, onNew, onChangeQuota, onTogglePin, on
     else onToggleEnabled(rule);
   };
 
-  return <RowActions label={`Actions for ${tracker.name}`} items={items} onAction={act} />;
+  return <RowActions label={t("Actions for {name}", { name: tracker.name })} items={items} onAction={act} />;
 }
 
 // Gone from qBittorrent, a held torrent has no progress to show.
@@ -673,8 +696,10 @@ function progressOf(torrent: HeldTorrent): string {
 // is a pin in the same color, and pressing it pins or unpins. The torrents it has
 // follow its name.
 function TrackerName({ tracker, onTogglePin }: { tracker: TrackerRow; onTogglePin: (tracker: TrackerRow) => void }) {
+  const t = useT();
   const { rule, pinned } = tracker;
-  const [label, color] = statusOf(rule);
+  const [status, color] = statusOf(rule);
+  const label = t(status);
   const mark = <StatusMark label={label} color={color} pinned={pinned} />;
 
   return (
@@ -685,10 +710,14 @@ function TrackerName({ tracker, onTogglePin }: { tracker: TrackerRow; onTogglePi
         // A plain button, since HeroUI's all have a background on hover. It's wider
         // than the mark: its negative margins give the room back, so the name stays
         // where it is.
-        <span className="-mx-2.5 flex" title={`${label} · ${pinned ? "Unpin" : "Pin"} tracker`}>
+        <span className="-mx-2.5 flex" title={`${label} · ${pinned ? t("Unpin tracker") : t("Pin tracker")}`}>
           <button
             type="button"
-            aria-label={`${pinned ? "Unpin" : "Pin"} ${tracker.name}, ${label}`}
+            aria-label={
+              pinned
+                ? t("Unpin {name}, {status}", { name: tracker.name, status: label })
+                : t("Pin {name}, {status}", { name: tracker.name, status: label })
+            }
             onClick={() => onTogglePin(tracker)}
             className="flex size-7 cursor-(--cursor-interactive) items-center justify-center rounded-md outline-none focus-visible:status-focused"
           >
@@ -705,7 +734,7 @@ function TrackerName({ tracker, onTogglePin }: { tracker: TrackerRow; onTogglePi
         <span className="font-medium">{tracker.name}</span>{" "}
         <span className="text-muted tabular-nums">({tracker.torrents})</span>
       </span>
-      {rule && !rule.enabled && <span className="text-muted">paused</span>}
+      {rule && !rule.enabled && <span className="text-muted">{t("paused")}</span>}
     </span>
   );
 }
@@ -721,18 +750,22 @@ interface RatioProps {
 // The tooltip names the ratio the tracker is held or released at. Without an
 // enabled rule nothing holds it, so it says what would.
 function Ratio({ totals, rule, freeleech }: RatioProps) {
+  const t = useT();
+  const format = useFormat();
   const held = rule.enabled && rule.state === "held";
   return (
     <Tooltip>
       <Tooltip.Trigger>
-        <span className="cursor-help font-medium tabular-nums">{freeleech ? "∞" : formatRatio(ratioOf(totals))}</span>
+        <span className="cursor-help font-medium tabular-nums">{freeleech ? "∞" : format.ratio(ratioOf(totals))}</span>
       </Tooltip.Trigger>
       <Tooltip.Content>
         {freeleech
-          ? "Downloads don't count during the freeleech"
+          ? t("Downloads don't count during the freeleech")
           : held
-            ? `Releases above a ${formatRatio(rule.releaseAbove)} ratio`
-            : `${rule.enabled ? "Holds" : "Would hold"} below a ${formatRatio(rule.holdBelow)} ratio`}
+            ? t("Releases above a {ratio} ratio", { ratio: format.ratio(rule.releaseAbove) })
+            : rule.enabled
+              ? t("Holds below a {ratio} ratio", { ratio: format.ratio(rule.holdBelow) })
+              : t("Would hold below a {ratio} ratio", { ratio: format.ratio(rule.holdBelow) })}
       </Tooltip.Content>
     </Tooltip>
   );
@@ -741,7 +774,8 @@ function Ratio({ totals, rule, freeleech }: RatioProps) {
 // Distance to the next state change, in the bytes that move it there: what can
 // still be downloaded before a hold, or what must be uploaded before a release.
 function Buffer({ rule, held }: { rule: Rule; held: boolean }) {
-  const bytes = formatGiB(held ? toReleaseOf(rule) : budgetOf(rule));
+  const t = useT();
+  const bytes = useFormat().gib(held ? toReleaseOf(rule) : budgetOf(rule));
   const Arrow = held ? ArrowUp : ArrowDown;
 
   return (
@@ -750,10 +784,12 @@ function Buffer({ rule, held }: { rule: Rule; held: boolean }) {
         <span className="inline-flex cursor-help items-center gap-1.5">
           <Arrow size={12} strokeWidth={2.5} aria-hidden className="text-muted" />
           {bytes}
-          <span className="sr-only">{held ? "to upload until release" : "to download until hold"}</span>
+          <span className="sr-only">{held ? t("to upload until release") : t("to download until hold")}</span>
         </span>
       </Tooltip.Trigger>
-      <Tooltip.Content>{held ? `Upload ${bytes} more to release` : `Download ${bytes} more and it holds`}</Tooltip.Content>
+      <Tooltip.Content>
+        {held ? t("Upload {bytes} more to release", { bytes }) : t("Download {bytes} more and it holds", { bytes })}
+      </Tooltip.Content>
     </Tooltip>
   );
 }
@@ -761,10 +797,11 @@ function Buffer({ rule, held }: { rule: Rule; held: boolean }) {
 // A tracker with no rule has no limit, so it has no buffer to keep: it shows
 // as infinite, at the user's request.
 function NoBuffer() {
+  const t = useT();
   return (
     <span className="inline-flex items-center">
       <InfinityIcon size={16} strokeWidth={2.5} aria-hidden />
-      <span className="sr-only">No limit</span>
+      <span className="sr-only">{t("No limit")}</span>
     </span>
   );
 }
@@ -772,20 +809,22 @@ function NoBuffer() {
 // On a freeleech nothing downloaded counts, so there's no buffer to keep, on
 // any tracker: it says so instead, at the user's request.
 function FreeleechBuffer() {
+  const t = useT();
   return (
     <Tooltip>
       <Tooltip.Trigger>
-        <span className="cursor-help">Freeleech</span>
+        <span className="cursor-help">{t("Freeleech")}</span>
       </Tooltip.Trigger>
-      <Tooltip.Content>Downloads don't count during the freeleech</Tooltip.Content>
+      <Tooltip.Content>{t("Downloads don't count during the freeleech")}</Tooltip.Content>
     </Tooltip>
   );
 }
 
+// The label is translated where it's shown.
 function statusOf(rule: Rule | undefined): [label: string, color: string] {
-  if (!rule) return ["No rule", "text-foreground"];
-  if (!rule.enabled) return ["Paused", "text-foreground/30"];
-  return rule.state === "held" ? ["Held", "text-danger"] : ["OK", "text-success"];
+  if (!rule) return [msg("No rule"), "text-foreground"];
+  if (!rule.enabled) return [msg("Paused"), "text-foreground/30"];
+  return rule.state === "held" ? [msg("Held"), "text-danger"] : [msg("OK"), "text-success"];
 }
 
 // HeroUI's Badge dot only sits on the corner of another element, so the status

@@ -17,7 +17,9 @@ import { usePoll } from "../hooks/usePoll";
 import { api, type HoldAction, type ProwlarrOptions, type RuleFields, type RuleState } from "../lib/api";
 import { cx } from "../lib/cx";
 import { DEFAULT_THRESHOLDS, toGiB, type Rule } from "../lib/data";
-import { FIELD_VARIANT, ROW, SelectField, SwitchField } from "./Form";
+import { msg, rich } from "../lib/i18n";
+import { useFormat, useT } from "../lib/prefs";
+import { FIELD_VARIANT, PointDecimals, ROW, SelectField, SwitchField } from "./Form";
 import { UsageBar } from "./UsageBar";
 
 interface RuleEditorProps {
@@ -35,12 +37,13 @@ interface RuleEditorProps {
 }
 
 export function RuleEditor({ open, rule, draft, session, onOpenChange, onSave }: RuleEditorProps) {
+  const t = useT();
   return (
     <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange}>
       {/* Large keeps the paired fields side by side (see ROW). */}
       <Modal.Container size="lg" scroll="inside">
         {/* No visible title, so the dialog is named here. */}
-        <Modal.Dialog aria-label={rule ? "Edit rule" : "New rule"}>
+        <Modal.Dialog aria-label={rule ? t("Edit rule") : t("New rule")}>
           {session > 0 && <RuleForm key={session} rule={rule ?? { ...NEW_RULE, ...draft }} onSave={onSave} />}
         </Modal.Dialog>
       </Modal.Container>
@@ -84,10 +87,10 @@ const NEW_RULE: Rule = {
   state: "ok",
 };
 
-// What each hold action does, shown under its radio.
+// What each hold action does, shown under its radio. Both are translated where they show.
 export const ACTIONS: Record<HoldAction, { label: string; description: string }> = {
-  throttle: { label: "Throttle", description: "Limits it to 1 KiB/s, keeps seeding" },
-  stop: { label: "Stop", description: "Stops the download" },
+  throttle: { label: msg("Throttle"), description: msg("Limits it to 1 KiB/s, keeps seeding") },
+  stop: { label: msg("Stop"), description: msg("Stops the download") },
 };
 
 // Ratios show two decimals, like everywhere else on the page.
@@ -97,6 +100,8 @@ const RATIO_FORMAT = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 const PREVIEW_DELAY_MS = 300;
 
 function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) => Promise<void> }) {
+  const t = useT();
+  const format = useFormat();
   const [name, setName] = useState(rule.name);
   const [tagsText, setTagsText] = useState(rule.tags.join(", "));
   const [domainsText, setDomainsText] = useState(rule.domains.join(", "));
@@ -118,11 +123,15 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   const [saving, setSaving] = useState(false);
 
   const errors = {
-    name: name.trim() === "" ? "Enter a name" : undefined,
-    domains: badDomain ? `${badDomain} isn't a domain` : undefined,
-    match: tags.length === 0 && domains.length === 0 ? "Add a tag or a domain" : undefined,
-    hold: !(hold > 0) ? "Enter a ratio above 0" : undefined,
-    release: !(release > 0) ? "Enter a ratio above 0" : hold > 0 && release <= hold ? "Must be above Hold below" : undefined,
+    name: name.trim() === "" ? t("Enter a name") : undefined,
+    domains: badDomain ? t("{domain} isn't a domain", { domain: badDomain }) : undefined,
+    match: tags.length === 0 && domains.length === 0 ? t("Add a tag or a domain") : undefined,
+    hold: !(hold > 0) ? t("Enter a ratio above 0") : undefined,
+    release: !(release > 0)
+      ? t("Enter a ratio above 0")
+      : hold > 0 && release <= hold
+        ? t("Must be above Hold below")
+        : undefined,
   };
   const valid = Object.values(errors).every((e) => e === undefined);
 
@@ -220,13 +229,13 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
           <div className="flex flex-col gap-4">
             <div className={ROW}>
               <TextField variant={FIELD_VARIANT} value={name} onChange={setName} isInvalid={errors.name !== undefined}>
-                <Label>Name</Label>
+                <Label>{t("Name")}</Label>
                 <Input />
                 <FieldError>{errors.name}</FieldError>
               </TextField>
               <TextField variant={FIELD_VARIANT} value={tagsText} onChange={setTagsText}>
-                <Label>Tags</Label>
-                <Input placeholder="Comma-separated" />
+                <Label>{t("Tags")}</Label>
+                <Input placeholder={t("Comma-separated")} />
               </TextField>
             </div>
             {/* Leaving the field swaps any pasted announce URL for its domain. */}
@@ -243,31 +252,33 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
               }}
               isInvalid={domainsLeft && errors.domains !== undefined}
             >
-              <Label>Domains</Label>
-              <Input placeholder="Domains or announce URLs, comma-separated" />
+              <Label>{t("Domains")}</Label>
+              <Input placeholder={t("Domains or announce URLs, comma-separated")} />
               <FieldError>{errors.domains}</FieldError>
             </TextField>
           </div>
 
           <div className={ROW}>
-            <RatioField label="Hold below" value={hold} onChange={setHold} error={errors.hold} />
-            <RatioField label="Release above" value={release} onChange={setRelease} error={errors.release} />
+            <RatioField label={t("Hold below")} value={hold} onChange={setHold} error={errors.hold} />
+            <RatioField label={t("Release above")} value={release} onChange={setRelease} error={errors.release} />
           </div>
           <div className="flex flex-col gap-2">
             <UsageBar rule={shown} />
             <p className="text-sm text-muted">
-              Below <Value>{holdAt.toFixed(2)}</Value> downloads pause, above{" "}
-              <Value>{releaseAt.toFixed(2)}</Value> they continue.
+              {rich(t, "Below {hold} downloads pause, above {release} they continue.", {
+                hold: <Value>{format.number(holdAt, 2)}</Value>,
+                release: <Value>{format.number(releaseAt, 2)}</Value>,
+              })}
             </p>
           </div>
 
           <Separator />
 
           <Fieldset>
-            <Fieldset.Legend>When held</Fieldset.Legend>
+            <Fieldset.Legend>{t("When held")}</Fieldset.Legend>
             <RadioGroup
               variant={FIELD_VARIANT}
-              aria-label="When held"
+              aria-label={t("When held")}
               orientation="horizontal"
               value={action}
               onChange={(value) => setAction(value as HoldAction)}
@@ -278,9 +289,9 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
                     <Radio.Control>
                       <Radio.Indicator />
                     </Radio.Control>
-                    {ACTIONS[id].label}
+                    {t(ACTIONS[id].label)}
                   </Radio.Content>
-                  <Description>{ACTIONS[id].description}</Description>
+                  <Description>{t(ACTIONS[id].description)}</Description>
                 </Radio>
               ))}
             </RadioGroup>
@@ -291,7 +302,7 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
           <div className="flex flex-col gap-4">
             <SwitchField
               label="Prowlarr"
-              description={prowlarr.error?.message ?? "Change the indexer's sync profile when held"}
+              description={prowlarr.error?.message ?? t("Change the indexer's sync profile when held")}
               isSelected={prowlarrOn}
               onChange={toggleProwlarr}
               isDisabled={unavailable && !prowlarrOn}
@@ -299,7 +310,7 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
             {prowlarrOn && (
               <div className="flex flex-col gap-4">
                 <SelectField
-                  label="Indexer"
+                  label={t("Indexer")}
                   value={indexerId}
                   onValueChange={pickIndexer}
                   items={itemsOf(options?.indexers)}
@@ -308,14 +319,14 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
                 {/* Side by side at any width: both profiles have short names. */}
                 <div className="grid grid-cols-2 items-start gap-x-3">
                   <SelectField
-                    label="While held"
+                    label={t("While held")}
                     value={heldProfileId}
                     onValueChange={setHeldProfileId}
                     items={itemsOf(options?.profiles)}
                     isDisabled={unavailable}
                   />
                   <SelectField
-                    label="After release"
+                    label={t("After release")}
                     value={restoreProfileId}
                     onValueChange={setRestoreProfileId}
                     items={itemsOf(options?.profiles)}
@@ -330,13 +341,14 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
 
       <Modal.Footer>
         <p className={cx("mr-auto text-sm", errors.match ? "text-danger" : "text-muted")}>
-          {errors.match ?? `${reach.torrents} ${reach.torrents === 1 ? "torrent matches" : "torrents match"}`}
+          {errors.match ??
+            (reach.torrents === 1 ? t("1 torrent matches") : t("{count} torrents match", { count: reach.torrents }))}
         </p>
         <Button slot="close" variant="secondary">
-          Cancel
+          {t("Cancel")}
         </Button>
         <Button isDisabled={!valid || saving} onPress={save}>
-          Save
+          {t("Save")}
         </Button>
       </Modal.Footer>
     </>
@@ -363,23 +375,25 @@ interface RatioFieldProps {
 
 function RatioField({ label, value, onChange, error }: RatioFieldProps) {
   return (
-    <NumberField
-      variant={FIELD_VARIANT}
-      value={value}
-      onChange={onChange}
-      minValue={0}
-      step={0.01}
-      formatOptions={RATIO_FORMAT}
-      isInvalid={error !== undefined}
-    >
-      <Label>{label}</Label>
-      <NumberField.Group>
-        <NumberField.DecrementButton />
-        <NumberField.Input />
-        <NumberField.IncrementButton />
-      </NumberField.Group>
-      <FieldError>{error}</FieldError>
-    </NumberField>
+    <PointDecimals>
+      <NumberField
+        variant={FIELD_VARIANT}
+        value={value}
+        onChange={onChange}
+        minValue={0}
+        step={0.01}
+        formatOptions={RATIO_FORMAT}
+        isInvalid={error !== undefined}
+      >
+        <Label>{label}</Label>
+        <NumberField.Group>
+          <NumberField.DecrementButton />
+          <NumberField.Input />
+          <NumberField.IncrementButton />
+        </NumberField.Group>
+        <FieldError>{error}</FieldError>
+      </NumberField>
+    </PointDecimals>
   );
 }
 

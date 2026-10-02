@@ -54,11 +54,19 @@ export interface QuotaChange {
   pinned?: boolean;
 }
 
+// server/src/config.ts
+export type Clock = "12" | "24";
+export type Language = "en" | "es";
+
 // publicSettings(): secrets only say whether they're set.
 export interface SavedSettings {
   qbittorrent: { address: string; hasApiKey: boolean };
   prowlarr: { address: string; hasApiKey: boolean };
   ntfy: { address: string; topic: string; hasToken: boolean };
+  // Empty for the browser's time zone.
+  timeZone: string;
+  clock: Clock;
+  language: Language;
   pollSeconds: number;
   testMode: boolean;
   logRetentionDays: number;
@@ -69,6 +77,9 @@ export interface SettingsInput {
   qbittorrent?: { address?: string; apiKey?: string };
   prowlarr?: { address?: string; apiKey?: string };
   ntfy?: { address?: string; topic?: string; token?: string };
+  timeZone?: string;
+  clock?: Clock;
+  language?: Language;
   pollSeconds?: number;
   testMode?: boolean;
   logRetentionDays?: number;

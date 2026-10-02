@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { cx } from "../lib/cx";
+import { useT } from "../lib/prefs";
 
 export interface PageMenuItem {
   label: string;
@@ -17,6 +18,7 @@ interface PageMenuProps<T extends string> {
 // tabs, after the one on HeroUI's docs: muted pages, and the current one in
 // the text color with a line under it, also in the text color.
 export function PageMenu<T extends string>({ label, items, current, onSelect }: PageMenuProps<T>) {
+  const t = useT();
   return (
     <nav aria-label={label} className="overflow-x-auto">
       <ul className="flex w-max gap-5">
@@ -36,7 +38,7 @@ export function PageMenu<T extends string>({ label, items, current, onSelect }: 
               >
                 {/* Narrow screens drop the icons so every page name fits. */}
                 <Icon aria-hidden size={16} className="hidden sm:block" />
-                {text}
+                {t(text)}
                 {selected && <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-foreground" />}
               </button>
             </li>

@@ -12,16 +12,19 @@ import { Copy, ScrollText } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Empty, Pending } from "../components/Empty";
 import { api, type LogLevel, type LogLine } from "../lib/api";
-import { formatTime } from "../lib/data";
+import { cx } from "../lib/cx";
+import { msg } from "../lib/i18n";
+import { useFormat, usePrefs, useT } from "../lib/prefs";
+import type { Format } from "../lib/format";
 
 const LEVELS: LogLevel[] = ["debug", "info", "warn", "error"];
 
 // Each option shows its level and everything more severe.
 const LEVEL_FILTER: Record<LogLevel, string> = {
-  debug: "All",
-  info: "Info",
-  warn: "Warn",
-  error: "Error",
+  debug: msg("All"),
+  info: msg("Info"),
+  warn: msg("Warn"),
+  error: msg("Error"),
 };
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
@@ -40,9 +43,9 @@ function formatFields(line: LogLine, separator: string): string {
     .join(separator);
 }
 
-function formatLine(line: LogLine): string {
+function formatLine(line: LogLine, format: Format): string {
   const fields = formatFields(line, " ");
-  return `${formatTime(line.at)} ${line.level.toUpperCase().padEnd(5)} [${line.scope}] ${line.message}${fields ? ` ${fields}` : ""}`;
+  return `${format.time(line.at, "millisecond")} ${line.level.toUpperCase().padEnd(5)} [${line.scope}] ${line.message}${fields ? ` ${fields}` : ""}`;
 }
 
 async function copyText(text: string): Promise<boolean> {
@@ -69,6 +72,8 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 export function Logs() {
+  const t = useT();
+  const format = useFormat();
   // Undefined until the first load ends.
   const [lines, setLines] = useState<LogLine[]>();
   const [error, setError] = useState<Error>();
@@ -122,8 +127,8 @@ export function Logs() {
   // The server filters by level, so only the text search is left.
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return (lines ?? []).filter((line) => !needle || formatLine(line).toLowerCase().includes(needle));
-  }, [lines, query]);
+    return (lines ?? []).filter((line) => !needle || formatLine(line, format).toLowerCase().includes(needle));
+  }, [lines, query, format]);
 
   // Keep the newest line in view while following.
   useEffect(() => {
@@ -132,16 +137,16 @@ export function Logs() {
   }, [visible, follow]);
 
   const copy = async () => {
-    const copied = await copyText(visible.map(formatLine).join("\n"));
-    if (copied) toast.success(`Copied ${visible.length} lines`);
-    else toast.danger("Couldn't copy the logs", { description: "Select the lines and copy them by hand." });
+    const copied = await copyText(visible.map((line) => formatLine(line, format)).join("\n"));
+    if (copied) toast.success(t("Copied {count} lines", { count: visible.length }));
+    else toast.danger(t("Couldn't copy the logs"), { description: t("Select the lines and copy them by hand.") });
   };
 
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
         <ToggleButtonGroup
-          aria-label="Lowest level shown"
+          aria-label={t("Lowest level shown")}
           size="sm"
           selectionMode="single"
           disallowEmptySelection
@@ -151,15 +156,15 @@ export function Logs() {
           {LEVELS.map((level, i) => (
             <ToggleButton key={level} id={level}>
               {i > 0 && <ToggleButtonGroup.Separator />}
-              {LEVEL_FILTER[level]}
+              {t(LEVEL_FILTER[level])}
             </ToggleButton>
           ))}
         </ToggleButtonGroup>
         <div className="w-full sm:w-72">
-          <SearchField aria-label="Filter logs" fullWidth value={query} onChange={setQuery}>
+          <SearchField aria-label={t("Filter logs")} fullWidth value={query} onChange={setQuery}>
             <SearchField.Group>
               <SearchField.SearchIcon />
-              <SearchField.Input placeholder="Filter" />
+              <SearchField.Input placeholder={t("Filter")} />
               <SearchField.ClearButton />
             </SearchField.Group>
           </SearchField>
@@ -170,20 +175,20 @@ export function Logs() {
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>
-              Live
+              {t("Live")}
             </Switch.Content>
           </Switch>
           <Tooltip>
             <Button
               isIconOnly
               variant="ghost"
-              aria-label="Copy visible lines"
+              aria-label={t("Copy visible lines")}
               onPress={copy}
               isDisabled={visible.length === 0}
             >
               <Copy aria-hidden />
             </Button>
-            <Tooltip.Content>Copy visible lines</Tooltip.Content>
+            <Tooltip.Content>{t("Copy visible lines")}</Tooltip.Content>
           </Tooltip>
         </div>
       </div>
@@ -197,7 +202,7 @@ export function Logs() {
               ))}
             </div>
           ) : lines ? (
-            <Empty icon={ScrollText} title="No matching lines" description="Try another level or filter" />
+            <Empty icon={ScrollText} title={t("No matching lines")} description={t("Try another level or filter")} />
           ) : (
             <Pending error={error} />
           )}
@@ -208,11 +213,18 @@ export function Logs() {
 }
 
 function LogRow({ line }: { line: LogLine }) {
+  const { prefs, format } = usePrefs();
   const fields = formatFields(line, "  ");
 
   return (
-    <div className="grid grid-cols-[auto_auto_1fr] gap-x-4 sm:grid-cols-[4.5rem_3rem_4.5rem_1fr]">
-      <span className="tabular-nums text-muted">{formatTime(line.at).slice(0, 8)}</span>
+    // The time's column fits "12:04:05 PM" on a 12-hour clock.
+    <div
+      className={cx(
+        "grid grid-cols-[auto_auto_1fr] gap-x-4",
+        prefs.clock === "12" ? "sm:grid-cols-[6rem_3rem_4.5rem_1fr]" : "sm:grid-cols-[4.5rem_3rem_4.5rem_1fr]",
+      )}
+    >
+      <span className="tabular-nums text-muted">{format.time(line.at, "second")}</span>
       <span className={LEVEL_COLOR[line.level]}>{line.level}</span>
       <span className="text-muted">{line.scope}</span>
       <span className="col-span-3 min-w-0 break-words sm:col-span-1">

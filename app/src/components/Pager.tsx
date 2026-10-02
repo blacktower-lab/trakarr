@@ -1,4 +1,5 @@
 import { Pagination } from "@heroui/react";
+import { useT } from "../lib/prefs";
 
 interface PagerProps {
   // Names the pages, like "Trackers pages".
@@ -12,6 +13,7 @@ interface PagerProps {
 // A table's pages, laid out as in HeroUI's docs: what's shown on the left,
 // the pages on the right.
 export function Pager({ label, page, pageSize, total, onChange }: PagerProps) {
+  const t = useT();
   const pages = pageCount(total, pageSize);
   const first = (page - 1) * pageSize + 1;
   const last = Math.min(page * pageSize, total);
@@ -19,13 +21,13 @@ export function Pager({ label, page, pageSize, total, onChange }: PagerProps) {
   return (
     <Pagination size="sm" aria-label={label}>
       <Pagination.Summary>
-        {first}–{last} of {total}
+        {t("{first}–{last} of {total}", { first, last, total })}
       </Pagination.Summary>
       <Pagination.Content>
         <Pagination.Item>
           <Pagination.Previous isDisabled={page === 1} onPress={() => onChange(page - 1)}>
             <Pagination.PreviousIcon />
-            Prev
+            {t("Prev")}
           </Pagination.Previous>
         </Pagination.Item>
         {pageList(page, pages).map((n, i) =>
@@ -43,7 +45,7 @@ export function Pager({ label, page, pageSize, total, onChange }: PagerProps) {
         )}
         <Pagination.Item>
           <Pagination.Next isDisabled={page === pages} onPress={() => onChange(page + 1)}>
-            Next
+            {t("Next")}
             <Pagination.NextIcon />
           </Pagination.Next>
         </Pagination.Item>
