@@ -1,6 +1,7 @@
-import { Button, Checkbox, Description, InputGroup, Label, ListBox, Select, Switch, TextField } from "@heroui/react";
-import { Eye, EyeOff } from "lucide-react";
+import { Button, Description, InputGroup, Label, ListBox, Select, Switch, TextField } from "@heroui/react";
+import { Check, Eye, EyeOff } from "lucide-react";
 import { useId, useState } from "react";
+import { cx } from "../lib/cx";
 
 // HeroUI's dialog examples give their fields the secondary variant, which fills
 // them so they show on the dialog's surface. Fields on a card get it too.
@@ -87,19 +88,42 @@ export function SwitchField({ label, description, isSelected, onChange, isDisabl
   );
 }
 
-// A checkbox before its label, with the description under it. HeroUI's content
-// wraps the box and the label, so a click on the label toggles it too.
+// A checkbox before its label, with the description under it. It's built here
+// because HeroUI's has a fixed 16px box and no size prop, at the user's request.
+// It copies HeroUI's look: the default color off, the accent on. The label wraps
+// the box, so a click on the text toggles it too.
 export function CheckboxField({ label, description, isSelected, onChange, isDisabled }: SwitchFieldProps) {
+  const descriptionId = useId();
+
   return (
-    <Checkbox variant={FIELD_VARIANT} isSelected={isSelected} onChange={onChange} isDisabled={isDisabled}>
-      <Checkbox.Content>
-        <Checkbox.Control>
-          <Checkbox.Indicator />
-        </Checkbox.Control>
-        <Label>{label}</Label>
-      </Checkbox.Content>
-      <Description>{description}</Description>
-    </Checkbox>
+    <div className="flex flex-col gap-1">
+      <label
+        className={cx("group flex w-fit items-center gap-3", isDisabled ? "opacity-50" : "cursor-(--cursor-interactive)")}
+      >
+        <input
+          type="checkbox"
+          className="peer sr-only"
+          checked={isSelected}
+          disabled={isDisabled}
+          aria-describedby={descriptionId}
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span
+          aria-hidden
+          className={cx(
+            "flex size-5 shrink-0 items-center justify-center rounded-md transition-colors duration-200 peer-focus-visible:status-focused motion-reduce:transition-none",
+            isSelected ? "bg-accent text-accent-foreground group-hover:bg-accent-hover" : "bg-default",
+          )}
+        >
+          {isSelected && <Check size={14} strokeWidth={3} />}
+        </span>
+        <span className="text-sm font-medium text-foreground select-none">{label}</span>
+      </label>
+      {/* As far in as the text, past the box and its gap. */}
+      <div className="ps-8">
+        <Description id={descriptionId}>{description}</Description>
+      </div>
+    </div>
   );
 }
 
