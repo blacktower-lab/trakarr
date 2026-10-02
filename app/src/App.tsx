@@ -8,6 +8,7 @@ import {
   CircleQuestionMark,
   Coins,
   History,
+  Infinity as InfinityIcon,
   LayoutDashboard,
   Pause,
   Pencil,
@@ -419,13 +420,18 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
                         </Table.Cell>
                         <Table.Cell>
                           <span className={cx(!rule && FADED)}>
-                            <Ratio totals={tracker} freeleech={freeleechLeft(tracker.freeleech) > 0} />
+                            <Ratio
+                              totals={tracker}
+                              rule={gaugeOf(tracker)}
+                              freeleech={freeleechLeft(tracker.freeleech) > 0}
+                            />
                           </span>
                         </Table.Cell>
                         <Table.Cell>
                           <UsageBar
                             rule={gaugeOf(tracker)}
                             faded={!rule}
+                            limited={!!rule}
                             freeleechLeft={freeleechLeft(tracker.freeleech)}
                           />
                         </Table.Cell>
@@ -434,8 +440,12 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onS
                             <span className={cx(!rule && FADED)}>
                               <FreeleechBuffer />
                             </span>
+                          ) : rule ? (
+                            rule.enabled && <Buffer rule={rule} held={rule.state === "held"} />
                           ) : (
-                            rule?.enabled && <Buffer rule={rule} held={rule.state === "held"} />
+                            <span className={FADED}>
+                              <NoBuffer />
+                            </span>
                           )}
                         </Table.Cell>
                         <Table.Cell>
@@ -699,11 +709,16 @@ function TrackerName({ tracker, onTogglePin }: { tracker: TrackerRow; onTogglePi
 
 interface RatioProps {
   totals: Pick<TrackerRow, "uploadedGiB" | "downloadedGiB">;
+  // What measures the tracker, for the ratio its tooltip names.
+  rule: Rule;
   // On a freeleech nothing downloaded counts, so the ratio has no end.
   freeleech: boolean;
 }
 
-function Ratio({ totals, freeleech }: RatioProps) {
+// The tooltip names the ratio the tracker is held or released at. Without an
+// enabled rule nothing holds it, so it says what would.
+function Ratio({ totals, rule, freeleech }: RatioProps) {
+  const held = rule.enabled && rule.state === "held";
   return (
     <Tooltip>
       <Tooltip.Trigger>
@@ -712,7 +727,9 @@ function Ratio({ totals, freeleech }: RatioProps) {
       <Tooltip.Content>
         {freeleech
           ? "Downloads don't count during the freeleech"
-          : `${formatGiB(totals.uploadedGiB)} up · ${formatGiB(totals.downloadedGiB)} down`}
+          : held
+            ? `Releases above a ${formatRatio(rule.releaseAbove)} ratio`
+            : `${rule.enabled ? "Holds" : "Would hold"} below a ${formatRatio(rule.holdBelow)} ratio`}
       </Tooltip.Content>
     </Tooltip>
   );
@@ -735,6 +752,17 @@ function Buffer({ rule, held }: { rule: Rule; held: boolean }) {
       </Tooltip.Trigger>
       <Tooltip.Content>{held ? `Upload ${bytes} more to release` : `Download ${bytes} more and it holds`}</Tooltip.Content>
     </Tooltip>
+  );
+}
+
+// A tracker with no rule has no limit, so it has no buffer to keep: it shows
+// as infinite, at the user's request.
+function NoBuffer() {
+  return (
+    <span className="inline-flex items-center">
+      <InfinityIcon size={16} strokeWidth={2.5} aria-hidden />
+      <span className="sr-only">No limit</span>
+    </span>
   );
 }
 

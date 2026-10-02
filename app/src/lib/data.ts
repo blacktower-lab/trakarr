@@ -214,10 +214,19 @@ export function formatLeft(ms: number): string {
   return hours % 24 ? `${days}d ${hours % 24}h` : `${days}d`;
 }
 
-export function formatGiB(gib: number): string {
+function formatSize(gib: number, gibUnit: string, tibUnit: string): string {
   if (gib === 0) return "0 B";
-  if (gib >= 1024) return `${(gib / 1024).toFixed(2)} TiB`;
-  return `${gib.toFixed(1)} GiB`;
+  if (gib >= 1024) return `${(gib / 1024).toFixed(2)} ${tibUnit}`;
+  return `${gib.toFixed(1)} ${gibUnit}`;
+}
+
+export function formatGiB(gib: number): string {
+  return formatSize(gib, "GiB", "TiB");
+}
+
+// The same sizes in the units people say them in, as the Downloaded column does.
+export function formatGB(gib: number): string {
+  return formatSize(gib, "GB", "TB");
 }
 
 // Compact relative time in its largest whole unit: "35m ago", "1h ago", "2d ago".

@@ -1,6 +1,6 @@
-import { Label, ProgressBar } from "@heroui/react";
+import { Label, ProgressBar, Tooltip } from "@heroui/react";
 import { cx } from "../lib/cx";
-import { formatGiB, formatLeft, limitOf, usageOf, type Rule } from "../lib/data";
+import { formatGB, formatLeft, limitOf, usageOf, type Rule } from "../lib/data";
 import { FLAME_COLOR, Flames } from "./Flames";
 
 type Level = "ok" | "near" | "held";
@@ -17,6 +17,9 @@ const LEVEL_COLOR: Record<Level, "success" | "warning" | "danger"> = {
 interface UsageBarProps {
   rule: Rule;
   faded?: boolean;
+  // Whether a rule limits the tracker. With none there's no limit to keep, so
+  // the tooltip says so.
+  limited?: boolean;
   // How long a freeleech still runs, in ms. While it does, a burning box
   // takes the bar's place.
   freeleechLeft?: number;
@@ -25,7 +28,7 @@ interface UsageBarProps {
 // Downloaded against the limit, colored by how close the tracker is to its hold.
 // Only an enabled rule has colors. A tracker with no rule is only measured, so
 // its bar is faded too.
-export function UsageBar({ rule, faded = false, freeleechLeft = 0 }: UsageBarProps) {
+export function UsageBar({ rule, faded = false, limited = true, freeleechLeft = 0 }: UsageBarProps) {
   if (freeleechLeft > 0) return <FreeleechBox left={freeleechLeft} faded={faded} />;
 
   const held = rule.enabled && rule.state === "held";
@@ -44,7 +47,13 @@ export function UsageBar({ rule, faded = false, freeleechLeft = 0 }: UsageBarPro
         color={rule.enabled ? LEVEL_COLOR[level] : "default"}
       >
         <Label>
-          {formatGiB(rule.downloadedGiB)} / {formatGiB(limit)}
+          {/* The label only has what's downloaded, so the tooltip has the limit. */}
+          <Tooltip>
+            <Tooltip.Trigger>
+              <span className="cursor-help">{formatGB(rule.downloadedGiB)}</span>
+            </Tooltip.Trigger>
+            <Tooltip.Content>{limited ? `Max ${formatGB(limit)} to keep the ratio` : "No rule, so no limit"}</Tooltip.Content>
+          </Tooltip>
         </Label>
         <ProgressBar.Output />
         <ProgressBar.Track>
@@ -76,7 +85,12 @@ function FreeleechBox({ left, faded }: { left: number; faded: boolean }) {
           className="flex h-3.5 items-center justify-center rounded-sm text-[10px] leading-none font-medium text-white"
           style={{ backgroundColor: FLAME_COLOR }}
         >
-          {formatLeft(left)} left
+          <Tooltip>
+            <Tooltip.Trigger>
+              <span className="cursor-help">{formatLeft(left)} left</span>
+            </Tooltip.Trigger>
+            <Tooltip.Content>Downloads don't count during the freeleech</Tooltip.Content>
+          </Tooltip>
         </div>
       </Flames>
     </div>
