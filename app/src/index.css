@@ -8,6 +8,8 @@
 /* The font the theme asks for. HeroUI's export expects the app to load it. */
 :root {
   --font-inter: "Inter Variable", sans-serif;
+  /* How long a tooltip waits to show. HeroUI's 1500ms felt slow. */
+  --tooltip-delay: 400ms;
 }
 
 body {
