@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import express, { type ErrorRequestHandler } from "express";
+import { createAuth } from "./auth.ts";
 import {
+  parseLogin,
   parseMatch,
+  parsePasswordChange,
   parseQuotaChange,
   parseRule,
   parseSettings,
@@ -36,6 +39,7 @@ interface Deps {
 export function createApi({ config, store, log, watcher }: Deps) {
   const app = express();
   const api = express.Router();
+  const auth = createAuth({ config, store });
   app.use(express.json());
 
   // Everything the UI does is logged. Saved changes also go to the events, with
@@ -51,10 +55,86 @@ export function createApi({ config, store, log, watcher }: Deps) {
     else log.warn("api", `Connection test to ${service} failed`, { address, error: result.message });
   }
 
+  const secure = (req: express.Request) => req.secure || req.headers["x-forwarded-proto"] === "https";
+
+  // With a password set, only these answer without a session: whether to ask
+  // for one, signing in and signing out. A request turned away is only logged
+  // at debug, since anyone who can reach the port can send thousands.
+  const OPEN = ["GET /session", "POST /login", "POST /logout"];
+  api.use((req, res, next) => {
+    if (!auth.required() || OPEN.includes(`${req.method} ${req.path}`) || auth.signedIn(req)) {
+      next();
+      return;
+    }
+    log.debug("api", "Turned away a request with no session", { request: `${req.method} ${req.originalUrl}` });
+    res.status(401).json({ error: "Sign in first" });
+  });
+
   function noSuchRule(req: express.Request, res: express.Response) {
     log.warn("api", "No such rule", { request: `${req.method} ${req.originalUrl}` });
     res.status(404).json({ error: "No such rule" });
   }
+
+  api.get("/session", (req, res) => {
+    const required = auth.required();
+    res.json({ required, authenticated: !required || auth.signedIn(req) });
+  });
+
+  api.post("/login", async (req, res) => {
+    if (!auth.required()) {
+      res.status(204).end();
+      return;
+    }
+    const address = req.ip ?? "";
+    if (auth.locked(address)) {
+      log.warn("api", "Turned away a sign-in: too many wrong passwords", { address });
+      res.status(429).json({ error: "Too many wrong passwords, try again in a few minutes" });
+      return;
+    }
+    if (!(await auth.verify(parseLogin(req.body)))) {
+      auth.failed(address);
+      log.warn("api", "Sign-in failed: wrong password", { address });
+      res.status(401).json({ error: "Wrong password" });
+      return;
+    }
+    auth.passed(address);
+    res.setHeader("set-cookie", auth.start(secure(req)));
+    log.info("api", "Signed in", { address });
+    res.status(204).end();
+  });
+
+  api.post("/logout", (req, res) => {
+    res.setHeader("set-cookie", auth.end(req));
+    log.info("api", "Signed out", { address: req.ip ?? "" });
+    res.status(204).end();
+  });
+
+  // Sets, changes or, with an empty one, removes the password. Changing it ends
+  // every session, and the one that changed it starts again.
+  api.post("/password", async (req, res) => {
+    const { current, next } = parsePasswordChange(req.body);
+    const had = auth.required();
+    const address = req.ip ?? "";
+    if (had) {
+      if (auth.locked(address)) {
+        log.warn("api", "Turned away a password change: too many wrong passwords", { address });
+        res.status(429).json({ error: "Too many wrong passwords, try again in a few minutes" });
+        return;
+      }
+      if (!(await auth.verify(current))) {
+        auth.failed(address);
+        throw new ValidationError("The current password is wrong");
+      }
+      auth.passed(address);
+    } else if (next === "") {
+      throw new ValidationError("There's no password to remove");
+    }
+    await auth.setPassword(next);
+    auth.endAll();
+    res.setHeader("set-cookie", next === "" ? auth.end(req) : auth.start(secure(req)));
+    changed("settings", `Password ${next === "" ? "removed" : had ? "changed" : "set"}`, {});
+    res.status(204).end();
+  });
 
   api.get("/status", (_req, res) => {
     res.json(watcher.status());

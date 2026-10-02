@@ -2,8 +2,8 @@ import { DatabaseSync } from "node:sqlite";
 import type { Held, LedgerEntry, RuleState } from "./engine.ts";
 import type { Fields, Level } from "./log.ts";
 
-// trakarr.db, for what trakarr writes by itself: logs, events and the state
-// the engine needs across restarts. Rules and settings live in JSON files.
+// trakarr.db, for what trakarr writes by itself: logs, events, the dashboard's
+// sessions and the state the engine needs across restarts. Rules and settings live in JSON files.
 
 export type EventKind = "hold" | "release" | "rule" | "tracker" | "settings" | "error";
 
@@ -49,6 +49,9 @@ const SCHEMA = `
     id INTEGER PRIMARY KEY, at INTEGER NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL,
     test_mode INTEGER NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY, expires INTEGER NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS rule_state (
     rule_id TEXT PRIMARY KEY, state TEXT NOT NULL, since INTEGER NOT NULL, prowlarr TEXT
   );
@@ -80,6 +83,11 @@ export function openStore(path: string) {
     pruneLogs: db.prepare("DELETE FROM logs WHERE at < ?"),
     addEvent: db.prepare("INSERT INTO events (at, kind, text, test_mode) VALUES (?, ?, ?, ?)"),
     events: db.prepare("SELECT * FROM events ORDER BY id DESC LIMIT ?"),
+    addSession: db.prepare("INSERT INTO sessions (token_hash, expires) VALUES (?, ?)"),
+    session: db.prepare("SELECT expires FROM sessions WHERE token_hash = ?"),
+    deleteSession: db.prepare("DELETE FROM sessions WHERE token_hash = ?"),
+    deleteSessions: db.prepare("DELETE FROM sessions"),
+    pruneSessions: db.prepare("DELETE FROM sessions WHERE expires <= ?"),
     setState: db.prepare("INSERT OR REPLACE INTO rule_state (rule_id, state, since, prowlarr) VALUES (?, ?, ?, ?)"),
     deleteState: db.prepare("DELETE FROM rule_state WHERE rule_id = ?"),
     putHeld: db.prepare("INSERT OR REPLACE INTO held (hash, rule_id, name, action, dl_limit, at) VALUES (?, ?, ?, ?, ?, ?)"),
@@ -154,6 +162,27 @@ export function openStore(path: string) {
         text: row.text as string,
         testMode: row.test_mode === 1,
       }));
+    },
+
+    // A session is kept as the hash of its token, and lasts until `expires`.
+    addSession(tokenHash: string, expires: number) {
+      statements.addSession.run(tokenHash, expires);
+    },
+
+    sessionExpires(tokenHash: string): number | undefined {
+      return (statements.session.get(tokenHash) as { expires: number } | undefined)?.expires;
+    },
+
+    deleteSession(tokenHash: string) {
+      statements.deleteSession.run(tokenHash);
+    },
+
+    deleteSessions() {
+      statements.deleteSessions.run();
+    },
+
+    pruneSessions(now: number) {
+      statements.pruneSessions.run(now);
     },
 
     ruleStates(): Map<string, StoredState> {

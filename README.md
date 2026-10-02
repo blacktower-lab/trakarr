@@ -26,7 +26,9 @@ dashboard is on port 7478. Run it again to update.
 Then connect qBittorrent in Settings > Integrations with an API key from its
 WebUI options, which needs qBittorrent 5.2 or later, add a rule, and turn test
 mode off once its events look right. To be told when it holds, releases or loses
-qBittorrent, add an ntfy topic in Settings > Notifications.
+qBittorrent, add an ntfy topic in Settings > Notifications. The dashboard is
+open until you set a password in Settings > Security. If you forget it, delete
+`auth.json` from the settings folder.
 
 ## Development
 

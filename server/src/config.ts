@@ -2,8 +2,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join, resolve } from "node:path";
 
 // Like Seerr, everything trakarr keeps lives in one directory: settings.json,
-// rules.json and trackers.json, which the user edits, and trakarr.db, which
-// trakarr writes.
+// rules.json and trackers.json, which the user edits, and trakarr.db and
+// auth.json, which trakarr writes. auth.json has the hash of the dashboard's
+// password, and deleting it opens the dashboard again.
 export const CONFIG_DIR = resolve(process.env.CONFIG_DIRECTORY ?? join(import.meta.dirname, "../../config"));
 
 export type HoldAction = "throttle" | "stop";
@@ -77,6 +78,13 @@ const DEFAULT_SETTINGS: Settings = {
   logRetentionDays: 14,
 };
 
+// What guards the dashboard: the hash of its password, or none for an open one.
+export interface Auth {
+  password: string;
+}
+
+export const MIN_PASSWORD = 8;
+
 export class ValidationError extends Error {}
 
 export function openConfig(dir = CONFIG_DIR) {
@@ -84,6 +92,7 @@ export function openConfig(dir = CONFIG_DIR) {
   const settingsPath = join(dir, "settings.json");
   const rulesPath = join(dir, "rules.json");
   const trackersPath = join(dir, "trackers.json");
+  const authPath = join(dir, "auth.json");
 
   // Both files can be edited by hand, so they go through the same checks as
   // the API, and missing keys take their defaults.
@@ -92,12 +101,18 @@ export function openConfig(dir = CONFIG_DIR) {
     readJson<unknown[]>(rulesPath, []).map((rule) => parseRule(rule, (rule as { id?: unknown }).id)),
   );
   let trackers = checked(trackersPath, () => readJson<unknown[]>(trackersPath, []).map(parseTracker));
+  let auth = checked(authPath, () => ({ password: text(object(readJson(authPath, {}), "auth").password ?? "", "password") }));
   writeJson(settingsPath, settings);
 
   return {
     settings: () => settings,
     rules: () => rules,
     trackers: () => trackers,
+    auth: () => auth,
+    saveAuth(next: Auth) {
+      writeJson(authPath, next);
+      auth = next;
+    },
     saveSettings(next: Settings) {
       writeJson(settingsPath, next);
       settings = next;
@@ -194,6 +209,21 @@ export function parseMatch(input: unknown): { tags: string[]; domains: string[] 
   const bad = domains.find((domain) => !DOMAIN.test(domain));
   if (bad !== undefined) throw new ValidationError(bad.includes("/") ? "A domain isn't valid" : `${bad} isn't a domain`);
   return { tags, domains };
+}
+
+export function parseLogin(input: unknown): string {
+  return text(object(input ?? {}, "login").password, "password");
+}
+
+// A new password, or an empty one to remove it. The current one is only needed
+// when there is one.
+export function parsePasswordChange(input: unknown): { current: string; next: string } {
+  const c = object(input ?? {}, "password");
+  const next = text(c.next, "next");
+  if (next !== "" && next.length < MIN_PASSWORD) {
+    throw new ValidationError(`The password needs at least ${MIN_PASSWORD} characters`);
+  }
+  return { current: c.current === undefined ? "" : text(c.current, "current"), next };
 }
 
 function parseTracker(input: unknown): TrackerQuota {
