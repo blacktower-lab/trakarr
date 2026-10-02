@@ -17,16 +17,18 @@ import {
   useMediaQuery,
   useOverlayState,
 } from "@heroui/react";
-import { CircleAlert, CircleCheck, PanelLeft, Wrench } from "lucide-react";
+import { CircleAlert, CircleCheck, PanelLeft, Unplug, Wrench } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { Empty, Pending } from "../components/Empty";
 import { FIELD_VARIANT, SecretInput, SelectField, SwitchField } from "../components/Form";
+import { Section } from "../components/Section";
 import { usePoll } from "../hooks/usePoll";
 import { api, type SavedSettings, type SettingsInput, type TestResult } from "../lib/api";
 import { cx } from "../lib/cx";
 
 const SECTIONS = {
   system: "System",
+  integrations: "Integrations",
   "api-keys": "API keys",
   time: "Time & language",
   security: "Security",
@@ -60,22 +62,36 @@ export function Settings() {
   // HeroUI has no sidebar. Wide screens list the sections in vertical tabs;
   // narrow ones keep them in a drawer.
   const wide = useMediaQuery("(min-width: 768px)");
+  // The sections that are built. The others are still empty.
+  const built = section === "system" || section === "integrations";
+
+  const content =
+    built && settings.data ? (
+      section === "system" ? (
+        <GeneralCard saved={settings.data} onSaved={settings.refresh} />
+      ) : (
+        // Blocks of the same size, as many to a row as fit.
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
+          <QbittorrentCard saved={settings.data} onSaved={settings.refresh} />
+          <ProwlarrCard saved={settings.data} onSaved={settings.refresh} />
+        </div>
+      )
+    ) : (
+      <Card>{built ? <Pending error={settings.error} /> : <Empty icon={Wrench} title="Not in this mockup yet" />}</Card>
+    );
 
   return (
     <div className="flex items-start gap-10">
       {wide && <SectionTabs section={section} onSelect={setSection} />}
       <div className="flex min-w-0 flex-1 flex-col gap-4">
-        {!wide && <SectionDrawer section={section} onSelect={setSection} />}
-        {section === "system" && settings.data ? (
-          <div className="flex flex-col gap-6">
-            <GeneralCard saved={settings.data} onSaved={settings.refresh} />
-            <QbittorrentCard saved={settings.data} onSaved={settings.refresh} />
-            <ProwlarrCard saved={settings.data} onSaved={settings.refresh} />
-          </div>
+        {wide ? (
+          <Section title={SECTIONS[section]}>{content}</Section>
         ) : (
-          <Card>
-            {section === "system" ? <Pending error={settings.error} /> : <Empty icon={Wrench} title="Not in this mockup yet" />}
-          </Card>
+          // The drawer's bar already names the section.
+          <>
+            <SectionDrawer section={section} onSelect={setSection} />
+            {content}
+          </>
         )}
       </div>
     </div>
@@ -89,7 +105,7 @@ interface SectionNavProps {
 
 function SectionTabs({ section, onSelect }: SectionNavProps) {
   return (
-    <Tabs orientation="vertical" align="start" selectedKey={section} onSelectionChange={(key) => onSelect(key as SectionId)}>
+    <Tabs variant="secondary" orientation="vertical" align="start" selectedKey={section} onSelectionChange={(key) => onSelect(key as SectionId)}>
       <Tabs.ListContainer>
         <Tabs.List aria-label="Settings sections">
           {(Object.keys(SECTIONS) as SectionId[]).map((id) => (
@@ -147,25 +163,43 @@ interface CardProps {
 }
 
 function GeneralCard({ saved, onSaved }: CardProps) {
-  const editor = useEditor("General", onSaved);
+  const [testMode, setTestMode] = useState(saved.testMode);
+  const [retention, setRetention] = useState(String(saved.logRetentionDays));
+
+  // Each field saves as it changes, and goes back to what was saved if that fails.
+  const changeTestMode = async (value: boolean) => {
+    setTestMode(value);
+    if (!(await saveSettings("General", { testMode: value }, onSaved))) setTestMode(saved.testMode);
+  };
+  const changeRetention = async (value: string) => {
+    setRetention(value);
+    if (!(await saveSettings("General", { logRetentionDays: Number(value) }, onSaved))) {
+      setRetention(String(saved.logRetentionDays));
+    }
+  };
 
   return (
-    <>
-      <SettingsCard
-        title="General"
-        actions={
-          <Button size="sm" variant="secondary" aria-label="Edit General" onPress={() => editor.edit()}>
-            Edit
-          </Button>
-        }
-      >
-        <Detail label="Test mode">{saved.testMode ? "On" : "Off"}</Detail>
-        <Detail label="Log retention">{saved.logRetentionDays} days</Detail>
-      </SettingsCard>
-      <EditDialog {...editor.dialog}>
-        <GeneralForm key={editor.session} saved={saved} onSave={editor.save} />
-      </EditDialog>
-    </>
+    <SettingsCard
+      body={
+        <div className="flex flex-col gap-8">
+          <SwitchField
+            switchFirst
+            label="Test mode"
+            description="Logs what would be held or released, and changes nothing"
+            isSelected={testMode}
+            onChange={changeTestMode}
+          />
+          <div className="w-full max-w-64">
+            <SelectField
+              label="Log retention"
+              value={retention}
+              onValueChange={changeRetention}
+              items={withSaved(RETENTION_OPTIONS, saved.logRetentionDays, "days")}
+            />
+          </div>
+        </div>
+      }
+    />
   );
 }
 
@@ -174,33 +208,6 @@ interface FormProps {
   // The field to start on when a card's fix action opened the dialog.
   focus?: Focus;
   onSave: (patch: SettingsInput) => Promise<unknown>;
-}
-
-function GeneralForm({ saved, onSave }: FormProps) {
-  const [testMode, setTestMode] = useState(saved.testMode);
-  const [retention, setRetention] = useState(String(saved.logRetentionDays));
-
-  return (
-    <EditForm
-      title="Edit General"
-      valid
-      dirty={testMode !== saved.testMode || retention !== String(saved.logRetentionDays)}
-      onSave={() => onSave({ testMode, logRetentionDays: Number(retention) })}
-    >
-      <SwitchField
-        label="Test mode"
-        description="Logs what would be held or released, and changes nothing"
-        isSelected={testMode}
-        onChange={setTestMode}
-      />
-      <SelectField
-        label="Log retention"
-        value={retention}
-        onValueChange={setRetention}
-        items={withSaved(RETENTION_OPTIONS, saved.logRetentionDays, "days")}
-      />
-    </EditForm>
-  );
 }
 
 function QbittorrentCard({ saved: settings, onSaved }: CardProps) {
@@ -213,8 +220,6 @@ function QbittorrentCard({ saved: settings, onSaved }: CardProps) {
         name="qBittorrent"
         configured={saved.address !== ""}
         result={service.result}
-        testing={service.testing}
-        onTest={service.test}
         onEdit={service.edit}
         secret="password"
       >
@@ -291,8 +296,6 @@ function ProwlarrCard({ saved: settings, onSaved }: CardProps) {
         name="Prowlarr"
         configured={saved.address !== ""}
         result={service.result}
-        testing={service.testing}
-        onTest={service.test}
         onEdit={service.edit}
         secret="API key"
       >
@@ -365,30 +368,36 @@ function AddressField({ value, onChange, error, autoFocus }: AddressFieldProps) 
 }
 
 interface SettingsCardProps {
-  title: string;
+  // A card with none has no header, since its section already says what it is.
+  title?: string;
   // Beside the title.
   status?: ReactNode;
-  actions: ReactNode;
+  actions?: ReactNode;
   alert?: ReactNode;
-  // The details list. A card without one is only its header.
+  // The details list. A card without one is only its header, or has a body in
+  // its place.
   children?: ReactNode;
+  // What stands in place of the details list: an empty message, or fields.
+  body?: ReactNode;
 }
 
-function SettingsCard({ title, status, actions, alert, children }: SettingsCardProps) {
+function SettingsCard({ title, status, actions, alert, children, body }: SettingsCardProps) {
   return (
     <Card>
-      <div className="flex flex-wrap items-center gap-3">
-        <Card.Header>
-          <Card.Title>{title}</Card.Title>
-        </Card.Header>
-        {status}
-        <div className="ml-auto flex gap-2">{actions}</div>
-      </div>
-      {children && (
+      {title && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Card.Header>
+            <Card.Title>{title}</Card.Title>
+          </Card.Header>
+          {status}
+          {actions && <div className="ml-auto flex gap-2">{actions}</div>}
+        </div>
+      )}
+      {(children || body) && (
         <Card.Content>
           <div className="flex flex-col gap-4">
             {alert}
-            <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">{children}</dl>
+            {children ? <dl className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">{children}</dl> : body}
           </div>
         </Card.Content>
       )}
@@ -402,15 +411,13 @@ interface ServiceCardProps {
   configured: boolean;
   // What the last test of the saved settings returned. None until it ends.
   result: TestResult | undefined;
-  testing: boolean;
-  onTest: () => void;
   onEdit: (focus?: Focus) => void;
   // What the service's credential is called, for the fix action.
   secret: string;
   children: ReactNode;
 }
 
-function ServiceCard({ name, configured, result, testing, onTest, onEdit, secret, children }: ServiceCardProps) {
+function ServiceCard({ name, configured, result, onEdit, secret, children }: ServiceCardProps) {
   if (!configured) {
     return (
       <SettingsCard
@@ -420,6 +427,7 @@ function ServiceCard({ name, configured, result, testing, onTest, onEdit, secret
             Connect
           </Button>
         }
+        body={<Empty icon={Unplug} title="Not connected" />}
       />
     );
   }
@@ -442,12 +450,9 @@ function ServiceCard({ name, configured, result, testing, onTest, onEdit, secret
         )
       }
       actions={
-        <>
-          <TestButton size="sm" testing={testing} aria-label={`Test ${name}`} onPress={onTest} />
-          <Button size="sm" variant="secondary" aria-label={`Edit ${name}`} onPress={() => onEdit()}>
-            Edit
-          </Button>
-        </>
+        <Button size="sm" variant="secondary" aria-label={`Edit ${name}`} onPress={() => onEdit()}>
+          Edit
+        </Button>
       }
       alert={
         result &&
@@ -487,9 +492,7 @@ function Detail({ label, subtle, children }: { label: string; subtle?: boolean; 
 interface TestButtonProps {
   testing: boolean;
   onPress: () => void;
-  size?: "sm" | "md";
   isDisabled?: boolean;
-  "aria-label"?: string;
 }
 
 // HeroUI's pending state blocks presses but draws nothing, so the button adds
@@ -507,6 +510,19 @@ function TestButton({ testing, ...props }: TestButtonProps) {
   );
 }
 
+// Saves settings and says so, or says why it couldn't. Reports whether it saved.
+async function saveSettings(name: string, patch: SettingsInput, onSaved: () => void): Promise<boolean> {
+  try {
+    await api.saveSettings(patch);
+  } catch (error) {
+    toast.danger(`Couldn't save ${name}`, { description: (error as Error).message });
+    return false;
+  }
+  toast.success(`${name} saved`);
+  onSaved();
+  return true;
+}
+
 // A card's edit dialog. Saving closes it, unless the save fails.
 function useEditor(name: string, onSaved: () => void) {
   const [editor, setEditor] = useState<{ open: boolean; session: number; focus?: Focus }>({ open: false, session: 0 });
@@ -518,16 +534,9 @@ function useEditor(name: string, onSaved: () => void) {
     edit: (focus?: Focus) => setEditor((current) => ({ open: true, session: current.session + 1, focus })),
     // Says whether the settings were saved.
     save: async (patch: SettingsInput): Promise<boolean> => {
-      try {
-        await api.saveSettings(patch);
-      } catch (error) {
-        toast.danger(`Couldn't save ${name}`, { description: (error as Error).message });
-        return false;
-      }
-      setEditor((current) => ({ ...current, open: false }));
-      toast.success(`${name} saved`);
-      onSaved();
-      return true;
+      const saved = await saveSettings(name, patch, onSaved);
+      if (saved) setEditor((current) => ({ ...current, open: false }));
+      return saved;
     },
     dialog: {
       open: editor.open,
@@ -542,41 +551,30 @@ function useEditor(name: string, onSaved: () => void) {
 function useService(name: string, configured: boolean, test: () => Promise<TestResult>, onSaved: () => void) {
   const editor = useEditor(name, onSaved);
   const [result, setResult] = useState<TestResult>();
-  const [testing, setTesting] = useState(false);
 
   // Only fails if trakarr itself can't be reached, which says nothing of the service.
-  const run = async (announce: boolean) => {
-    setTesting(true);
+  const run = async () => {
     try {
-      const next = await test();
-      setResult(next);
-      if (announce) {
-        if (next.ok) toast.success(`Connected to ${name}`);
-        else toast.danger(`${name}: ${next.message}`);
-      }
+      setResult(await test());
     } catch (error) {
       toast.danger(`Couldn't test ${name}`, { description: (error as Error).message });
-    } finally {
-      setTesting(false);
     }
   };
 
   useEffect(() => {
-    if (configured) void run(false);
+    if (configured) void run();
     // Once, when the card shows.
   }, []);
 
   return {
     ...editor,
     result,
-    testing,
-    test: () => run(true),
     // Saving tests the new settings, so the card shows whether they work. Until
     // then it shows nothing, not the result of the old ones.
     save: async (patch: SettingsInput) => {
       if (!(await editor.save(patch))) return;
       setResult(undefined);
-      void run(false);
+      void run();
     },
   };
 }
