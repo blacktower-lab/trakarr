@@ -184,23 +184,6 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   const options = prowlarr.data;
   const unavailable = options === undefined;
 
-  // Typing a ratio takes the rule off the buffer, and the other ratio keeps
-  // what the fields showed.
-  const typeHold = (value: number) => {
-    if (byBuffer) {
-      setByBuffer(false);
-      setRelease(BUFFER_THRESHOLDS.releaseAbove);
-    }
-    setHold(value);
-  };
-  const typeRelease = (value: number) => {
-    if (byBuffer) {
-      setByBuffer(false);
-      setHold(BUFFER_THRESHOLDS.holdBelow);
-    }
-    setRelease(value);
-  };
-
   // The indexer's current profile is where it goes back to after a release.
   const pickIndexer = (key: string) => {
     setIndexerId(key);
@@ -272,19 +255,21 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
             </TextField>
           </div>
 
-          {/* On the buffer the fields show the ratios it holds and releases at. */}
+          {/* On the buffer the fields are disabled, and show the ratios it holds and releases at. */}
           <div className={ROW}>
             <RatioField
               label={t("Hold below")}
               value={byBuffer ? BUFFER_THRESHOLDS.holdBelow : hold}
-              onChange={typeHold}
+              onChange={setHold}
               error={errors.hold}
+              isDisabled={byBuffer}
             />
             <RatioField
               label={t("Release above")}
               value={byBuffer ? BUFFER_THRESHOLDS.releaseAbove : release}
-              onChange={typeRelease}
+              onChange={setRelease}
               error={errors.release}
+              isDisabled={byBuffer}
             />
           </div>
 
@@ -395,9 +380,10 @@ interface RatioFieldProps {
   value: number;
   onChange: (value: number) => void;
   error?: string;
+  isDisabled?: boolean;
 }
 
-function RatioField({ label, value, onChange, error }: RatioFieldProps) {
+function RatioField({ label, value, onChange, error, isDisabled }: RatioFieldProps) {
   return (
     <PointDecimals>
       <NumberField
@@ -408,6 +394,7 @@ function RatioField({ label, value, onChange, error }: RatioFieldProps) {
         step={0.01}
         formatOptions={RATIO_FORMAT}
         isInvalid={error !== undefined}
+        isDisabled={isDisabled}
       >
         <Label>{label}</Label>
         <NumberField.Group>
