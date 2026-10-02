@@ -9,6 +9,7 @@ const rule: Rule = {
   domains: ["kestrel.example"],
   holdBelow: 1,
   releaseAbove: 1.1,
+  byBuffer: false,
   action: "throttle",
   prowlarr: null,
   enabled: true,
@@ -84,6 +85,15 @@ test("the state only changes past the thresholds", () => {
   assert.equal(nextState("held", 1.05, rule), "held");
   assert.equal(nextState("held", 1.11, rule), "ok");
   assert.equal(nextState("ok", Infinity, rule), "ok");
+});
+
+test("a rule on the buffer holds below ratio 1 whatever its own ratios say", () => {
+  const lenient = { ...rule, holdBelow: 0.5, releaseAbove: 0.8 };
+  assert.equal(nextState("ok", 0.9, lenient), "ok");
+  assert.equal(nextState("ok", 0.9, { ...lenient, byBuffer: true }), "held");
+  assert.equal(nextState("held", 1.05, { ...lenient, byBuffer: true }), "held");
+  assert.equal(nextState("held", 1.11, { ...lenient, byBuffer: true }), "ok");
+  assert.equal(nextState("ok", Infinity, { ...lenient, byBuffer: true }), "ok");
 });
 
 test("a held rule holds its downloads, and not completed or stopped torrents", () => {

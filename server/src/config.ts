@@ -21,6 +21,8 @@ export interface Rule {
   domains: string[];
   holdBelow: number;
   releaseAbove: number;
+  // Holds on the buffer instead of the two ratios above, which then don't count.
+  byBuffer: boolean;
   action: HoldAction;
   prowlarr: ProwlarrSwitch | null;
   enabled: boolean;
@@ -221,6 +223,7 @@ export function parseRule(input: unknown, id: unknown): Rule {
     domains,
     holdBelow,
     releaseAbove,
+    byBuffer: r.byBuffer === undefined ? false : boolean(r.byBuffer, "byBuffer"),
     action,
     prowlarr: r.prowlarr == null ? null : parseProwlarr(r.prowlarr),
     enabled: r.enabled === undefined ? true : boolean(r.enabled, "enabled"),

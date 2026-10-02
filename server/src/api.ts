@@ -331,6 +331,7 @@ function ruleFields(rule: Rule): Fields {
     domains: rule.domains.join(", "),
     holdBelow: rule.holdBelow,
     releaseAbove: rule.releaseAbove,
+    byBuffer: rule.byBuffer,
     action: rule.action,
     prowlarr: prowlarr
       ? `indexer ${prowlarr.indexerId}, profile ${prowlarr.heldProfileId} while held, ${prowlarr.restoreProfileId} after`

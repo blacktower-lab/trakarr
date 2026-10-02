@@ -77,6 +77,15 @@ test("rules are checked, and a pasted announce URL keeps only its domain", async
   const bad = await call("POST", "/rules", { name: "Kestrel", domains: ["kestrel.example"], holdBelow: 1.1, releaseAbove: 1 });
   assert.equal(bad.status, 400);
   assert.equal(bad.body.error, "releaseAbove must be greater than holdBelow");
+  const text = await call("POST", "/rules", {
+    name: "Kestrel",
+    domains: ["kestrel.example"],
+    holdBelow: 1,
+    releaseAbove: 1.1,
+    byBuffer: "yes",
+  });
+  assert.equal(text.status, 400);
+  assert.equal(text.body.error, "byBuffer must be true or false");
 
   const created = await call("POST", "/rules", {
     name: "Kestrel",
@@ -86,6 +95,7 @@ test("rules are checked, and a pasted announce URL keeps only its domain", async
   });
   assert.equal(created.status, 201);
   assert.deepEqual(created.body.domains, ["tracker.kestrel.example"]);
+  assert.equal(created.body.byBuffer, false);
   assert.equal(readFileSync(join(dir, "rules.json"), "utf8").includes("PASSKEY123"), false);
 
   const paused = await call("PATCH", `/rules/${created.body.id}`, { enabled: false });
@@ -172,7 +182,7 @@ test("everything the UI does is logged, with what it changed and never a secret"
       .map((l) => [l.level, l.message, l.fields]);
 
   const created = await call("POST", "/rules", { name: "Osprey", domains: ["osprey.example"], holdBelow: 1, releaseAbove: 1.1 });
-  await call("PATCH", `/rules/${created.body.id}`, { holdBelow: 0.9, domains: ["osprey.example", "falcon.example"] });
+  await call("PATCH", `/rules/${created.body.id}`, { holdBelow: 0.9, byBuffer: true, domains: ["osprey.example", "falcon.example"] });
   await call("DELETE", `/rules/${created.body.id}`);
   assert.deepEqual(lines("Osprey rule"), [
     [
@@ -183,12 +193,17 @@ test("everything the UI does is logged, with what it changed and never a secret"
         domains: "osprey.example",
         holdBelow: 1,
         releaseAbove: 1.1,
+        byBuffer: false,
         action: "throttle",
         prowlarr: "off",
         enabled: true,
       },
     ],
-    ["info", "Osprey rule edited", { domains: "osprey.example → osprey.example, falcon.example", holdBelow: "1 → 0.9" }],
+    [
+      "info",
+      "Osprey rule edited",
+      { domains: "osprey.example → osprey.example, falcon.example", holdBelow: "1 → 0.9", byBuffer: "false → true" },
+    ],
     [
       "info",
       "Osprey rule deleted",
@@ -197,6 +212,7 @@ test("everything the UI does is logged, with what it changed and never a secret"
         domains: "osprey.example, falcon.example",
         holdBelow: 0.9,
         releaseAbove: 1.1,
+        byBuffer: true,
         action: "throttle",
         prowlarr: "off",
         enabled: true,

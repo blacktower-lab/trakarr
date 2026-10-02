@@ -13,7 +13,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { usePoll } from "../hooks/usePoll";
 import { api, type HoldAction, type ProwlarrOptions, type RuleFields, type RuleState } from "../lib/api";
 import { cx } from "../lib/cx";
-import { DEFAULT_THRESHOLDS, toGiB, type Rule } from "../lib/data";
+import { BUFFER_THRESHOLDS, DEFAULT_THRESHOLDS, thresholdsOf, toGiB, type Rule } from "../lib/data";
 import { msg, rich } from "../lib/i18n";
 import { useFormat, useT } from "../lib/prefs";
 import { FIELD_VARIANT, PointDecimals, RadioField, ROW, SelectField, SwitchField } from "./Form";
@@ -74,6 +74,7 @@ const NEW_RULE: Rule = {
   name: "",
   domains: [],
   ...DEFAULT_THRESHOLDS,
+  byBuffer: false,
   action: "throttle",
   prowlarr: null,
   enabled: true,
@@ -107,6 +108,7 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   // NaN while a ratio field is empty.
   const [hold, setHold] = useState(rule.holdBelow);
   const [release, setRelease] = useState(rule.releaseAbove);
+  const [byBuffer, setByBuffer] = useState(rule.byBuffer);
   const [action, setAction] = useState<HoldAction>(rule.action);
   const [prowlarrOn, setProwlarrOn] = useState(rule.prowlarr !== null);
   // Ids as text, since the selects' keys are. Empty until an indexer is picked.
@@ -116,16 +118,19 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   const prowlarr = usePoll(api.prowlarr, null);
   const [saving, setSaving] = useState(false);
 
+  const holdError = !(hold > 0) ? t("Enter a ratio above 0") : undefined;
+  const releaseError = !(release > 0)
+    ? t("Enter a ratio above 0")
+    : hold > 0 && release <= hold
+      ? t("Must be above Hold below")
+      : undefined;
+  // On the buffer the ratios don't count, so they can't be wrong.
   const errors = {
     name: name.trim() === "" ? t("Enter a name") : undefined,
     domains: badDomain ? t("{domain} isn't a domain", { domain: badDomain }) : undefined,
     match: domains.length === 0 ? t("Add a domain") : undefined,
-    hold: !(hold > 0) ? t("Enter a ratio above 0") : undefined,
-    release: !(release > 0)
-      ? t("Enter a ratio above 0")
-      : hold > 0 && release <= hold
-        ? t("Must be above Hold below")
-        : undefined,
+    hold: byBuffer ? undefined : holdError,
+    release: byBuffer ? undefined : releaseError,
   };
   const valid = Object.values(errors).every((e) => e === undefined);
 
@@ -159,13 +164,16 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   }, [matchKey]);
 
   const ratio = reach.downloadedGiB === 0 ? Infinity : reach.uploadedGiB / reach.downloadedGiB;
-  const holdAt = errors.hold ? rule.holdBelow : hold;
-  const releaseAt = errors.release ? rule.releaseAbove : release;
+  const typed = {
+    holdBelow: holdError ? rule.holdBelow : hold,
+    releaseAbove: releaseError ? rule.releaseAbove : release,
+    byBuffer,
+  };
+  const { holdBelow: holdAt, releaseAbove: releaseAt } = thresholdsOf(typed);
   const state: RuleState = ratio < holdAt ? "held" : ratio > releaseAt ? "ok" : rule.state;
   const shown: Rule = {
     ...rule,
-    holdBelow: holdAt,
-    releaseAbove: releaseAt,
+    ...typed,
     state,
     uploadedGiB: reach.uploadedGiB,
     downloadedGiB: reach.downloadedGiB,
@@ -197,8 +205,10 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
       await onSave({
         name: name.trim(),
         domains,
-        holdBelow: hold,
-        releaseAbove: release,
+        // Ratios nobody can read, left over from before the buffer was on, go as they were saved.
+        holdBelow: holdError || releaseError ? rule.holdBelow : hold,
+        releaseAbove: holdError || releaseError ? rule.releaseAbove : release,
+        byBuffer,
         action,
         prowlarr: prowlarrOn
           ? {
@@ -245,9 +255,29 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
             </TextField>
           </div>
 
+          <SwitchField
+            label={t("Download based on buffer")}
+            description={t("Downloads only while uploaded covers them, ignoring the ratios")}
+            isSelected={byBuffer}
+            onChange={setByBuffer}
+          />
+
+          {/* On the buffer the fields show the ratios it holds and releases at. */}
           <div className={ROW}>
-            <RatioField label={t("Hold below")} value={hold} onChange={setHold} error={errors.hold} />
-            <RatioField label={t("Release above")} value={release} onChange={setRelease} error={errors.release} />
+            <RatioField
+              label={t("Hold below")}
+              value={byBuffer ? BUFFER_THRESHOLDS.holdBelow : hold}
+              onChange={setHold}
+              error={errors.hold}
+              isDisabled={byBuffer}
+            />
+            <RatioField
+              label={t("Release above")}
+              value={byBuffer ? BUFFER_THRESHOLDS.releaseAbove : release}
+              onChange={setRelease}
+              error={errors.release}
+              isDisabled={byBuffer}
+            />
           </div>
           <div className="flex flex-col gap-2">
             <UsageBar rule={shown} />
@@ -349,9 +379,10 @@ interface RatioFieldProps {
   value: number;
   onChange: (value: number) => void;
   error?: string;
+  isDisabled?: boolean;
 }
 
-function RatioField({ label, value, onChange, error }: RatioFieldProps) {
+function RatioField({ label, value, onChange, error, isDisabled }: RatioFieldProps) {
   return (
     <PointDecimals>
       <NumberField
@@ -362,6 +393,7 @@ function RatioField({ label, value, onChange, error }: RatioFieldProps) {
         step={0.01}
         formatOptions={RATIO_FORMAT}
         isInvalid={error !== undefined}
+        isDisabled={isDisabled}
       >
         <Label>{label}</Label>
         <NumberField.Group>

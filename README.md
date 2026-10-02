@@ -5,9 +5,11 @@
 trakarr holds downloads when your ratio drops and releases them once seeding
 brings it back.
 
-Rules pick torrents by the tracker domain they announce to. A rule can also
-switch a Prowlarr indexer's sync profile while it holds, and each tracker can
-count upload bought with bonus points and freeleech windows. Only downloading
+Rules pick torrents by the tracker domain they announce to, and hold on a ratio
+or, with "Download based on buffer", as soon as what was uploaded no longer
+covers what was downloaded. A rule can also switch a Prowlarr indexer's sync
+profile while it holds, and each tracker can count upload bought with bonus
+points and freeleech windows. Only downloading
 torrents are ever held: completed and stopped ones are left alone, and nothing
 is deleted. A fresh install runs in test mode, which only logs what it would do.
 

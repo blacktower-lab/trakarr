@@ -20,6 +20,7 @@ const KESTREL: Rule = {
   domains: ["kestrel.example"],
   holdBelow: 1,
   releaseAbove: 1.1,
+  byBuffer: false,
   action: "throttle",
   prowlarr: null,
   enabled: true,
@@ -115,6 +116,22 @@ test("holds downloads below the limit and releases them above the release ratio"
     store.events(10).map((e) => e.text),
     ["Kestrel reached 1.818 and released 1 download", "Kestrel fell to 0.364 and held 1 download"],
   );
+});
+
+test("a rule on the buffer holds once uploaded no longer covers downloaded", async () => {
+  // Kestrel sits at 900 / 1000 = 0.9: past the buffer, not past its own 0.5.
+  fake.torrents.set("seed", torrent({ trackers: [ANNOUNCE], uploaded: 900, downloaded: 900, state: "uploading", progress: 1 }));
+  fake.torrents.set("dl", torrent({ downloaded: 100, trackers: [ANNOUNCE] }));
+  const lenient = { ...KESTREL, holdBelow: 0.5, releaseAbove: 0.8 };
+
+  const own = setup({ rules: [lenient] });
+  await own.watcher.tick();
+  assert.deepEqual(fake.calls, []);
+
+  const buffer = setup({ rules: [{ ...lenient, byBuffer: true }] });
+  await buffer.watcher.tick();
+  assert.deepEqual(fake.calls, ["setDownloadLimit dl 1024", "addTags dl trakarr-hold"]);
+  assert.deepEqual(buffer.store.events(10).map((e) => e.text), ["Kestrel fell to 0.900 and held 1 download"]);
 });
 
 test("a stopped download is started again on release", async () => {

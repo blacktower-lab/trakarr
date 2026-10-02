@@ -5,7 +5,7 @@ import { Listed } from "../components/Empty";
 import { RowActions, type RowAction } from "../components/RowActions";
 import { ACTIONS } from "../components/RuleEditor";
 import { Section } from "../components/Section";
-import type { Rule } from "../lib/data";
+import { thresholdsOf, type Rule } from "../lib/data";
 import { useFormat, useT } from "../lib/prefs";
 
 interface RulesProps {
@@ -69,12 +69,13 @@ export function Rules({ rules, error, onNew, onEdit, onDelete }: RulesProps) {
                       <Table.Cell>
                         <span className="inline-flex items-center gap-2.5">
                           <span className="font-medium">{rule.name}</span>
+                          {rule.byBuffer && <span className="text-muted">{t("buffer")}</span>}
                           {!rule.enabled && <span className="text-muted">{t("paused")}</span>}
                         </span>
                       </Table.Cell>
                       <Table.Cell>{rule.domains.join(", ")}</Table.Cell>
-                      <Table.Cell>{format.ratio(rule.holdBelow)}</Table.Cell>
-                      <Table.Cell>{format.ratio(rule.releaseAbove)}</Table.Cell>
+                      <Table.Cell>{format.ratio(thresholdsOf(rule).holdBelow)}</Table.Cell>
+                      <Table.Cell>{format.ratio(thresholdsOf(rule).releaseAbove)}</Table.Cell>
                       <Table.Cell>{t(ACTIONS[rule.action].label)}</Table.Cell>
                       <Table.Cell>
                         <RowActions

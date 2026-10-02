@@ -56,6 +56,7 @@ import {
   pinnedFirst,
   ratioOf,
   sortTrackers,
+  thresholdsOf,
   toReleaseOf,
   trackerRows,
   type Rule,
@@ -702,6 +703,7 @@ function Ratio({ totals, rule, freeleech }: RatioProps) {
   const t = useT();
   const format = useFormat();
   const held = rule.enabled && rule.state === "held";
+  const { holdBelow, releaseAbove } = thresholdsOf(rule);
   return (
     <Tooltip>
       <Tooltip.Trigger>
@@ -711,10 +713,10 @@ function Ratio({ totals, rule, freeleech }: RatioProps) {
         {freeleech
           ? t("Downloads don't count during the freeleech")
           : held
-            ? t("Releases above a {ratio} ratio", { ratio: format.ratio(rule.releaseAbove) })
+            ? t("Releases above a {ratio} ratio", { ratio: format.ratio(releaseAbove) })
             : rule.enabled
-              ? t("Holds below a {ratio} ratio", { ratio: format.ratio(rule.holdBelow) })
-              : t("Would hold below a {ratio} ratio", { ratio: format.ratio(rule.holdBelow) })}
+              ? t("Holds below a {ratio} ratio", { ratio: format.ratio(holdBelow) })
+              : t("Would hold below a {ratio} ratio", { ratio: format.ratio(holdBelow) })}
       </Tooltip.Content>
     </Tooltip>
   );

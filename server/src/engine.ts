@@ -83,11 +83,24 @@ export function ratioOf(uploaded: number, downloaded: number): number {
   return downloaded === 0 ? Infinity : uploaded / downloaded;
 }
 
+// A rule on the buffer holds as soon as what it uploaded no longer covers what
+// it downloaded, which is a ratio of 1, and releases a little above it so it
+// doesn't flap on the line.
+export const BUFFER_THRESHOLDS = { holdBelow: 1, releaseAbove: 1.1 };
+
+type Thresholds = Pick<Rule, "holdBelow" | "releaseAbove" | "byBuffer">;
+
+// The ratios a rule holds and releases at: its own, or the buffer's.
+export function thresholdsOf(rule: Thresholds): Pick<Rule, "holdBelow" | "releaseAbove"> {
+  return rule.byBuffer ? BUFFER_THRESHOLDS : rule;
+}
+
 // Between the two thresholds the state stays as it is, so a ratio sitting on
 // the line doesn't flap.
-export function nextState(state: RuleState, ratio: number, rule: Pick<Rule, "holdBelow" | "releaseAbove">): RuleState {
-  if (state === "ok" && ratio < rule.holdBelow) return "held";
-  if (state === "held" && ratio > rule.releaseAbove) return "ok";
+export function nextState(state: RuleState, ratio: number, rule: Thresholds): RuleState {
+  const { holdBelow, releaseAbove } = thresholdsOf(rule);
+  if (state === "ok" && ratio < holdBelow) return "held";
+  if (state === "held" && ratio > releaseAbove) return "ok";
   return state;
 }
 

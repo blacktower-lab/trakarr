@@ -17,6 +17,8 @@ export interface RuleConfig {
   domains: string[];
   holdBelow: number;
   releaseAbove: number;
+  // Holds on the buffer instead of the two ratios above, which then don't count.
+  byBuffer: boolean;
   action: HoldAction;
   prowlarr: ProwlarrSwitch | null;
   enabled: boolean;

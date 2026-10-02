@@ -23,6 +23,16 @@ const GIB = 1024 ** 3;
 // trakarr only shows: nothing is held without a rule.
 export const DEFAULT_THRESHOLDS = { holdBelow: 1, releaseAbove: 1.1 };
 
+// What a rule on the buffer holds and releases at, whatever its own ratios
+// say: a ratio of 1 is what's uploaded covering what's downloaded. Mirrors
+// BUFFER_THRESHOLDS in server/src/engine.ts.
+export const BUFFER_THRESHOLDS = { holdBelow: 1, releaseAbove: 1.1 };
+
+// The ratios a rule holds and releases at: its own, or the buffer's.
+export function thresholdsOf(rule: Pick<RuleConfig, "holdBelow" | "releaseAbove" | "byBuffer">) {
+  return rule.byBuffer ? BUFFER_THRESHOLDS : rule;
+}
+
 export function toBytes(gib: number): number {
   return Math.round(gib * GIB);
 }
@@ -115,6 +125,7 @@ export function gaugeOf(row: TrackerRow): Rule {
       name: row.name,
       domains: [row.name],
       ...DEFAULT_THRESHOLDS,
+      byBuffer: false,
       action: "throttle",
       prowlarr: null,
       enabled: false,
@@ -175,14 +186,15 @@ export function ratioOf({ uploadedGiB, downloadedGiB }: Pick<Rule, "uploadedGiB"
 }
 
 export function budgetOf(rule: Rule): number {
-  return rule.uploadedGiB / rule.holdBelow - rule.downloadedGiB;
+  return rule.uploadedGiB / thresholdsOf(rule).holdBelow - rule.downloadedGiB;
 }
 
 // What the tracker may have downloaded at its next threshold: the hold ratio
 // while it's OK, the release ratio while it's held. A held tracker is over it.
 export function limitOf(rule: Rule): number {
   const held = rule.enabled && rule.state === "held";
-  return rule.uploadedGiB / (held ? rule.releaseAbove : rule.holdBelow);
+  const { holdBelow, releaseAbove } = thresholdsOf(rule);
+  return rule.uploadedGiB / (held ? releaseAbove : holdBelow);
 }
 
 // How much of its limit a rule has downloaded, as a fraction. With nothing
@@ -194,7 +206,7 @@ export function usageOf(rule: Rule): number {
 }
 
 export function toReleaseOf(rule: Rule): number {
-  return Math.max(0, rule.releaseAbove * rule.downloadedGiB - rule.uploadedGiB);
+  return Math.max(0, thresholdsOf(rule).releaseAbove * rule.downloadedGiB - rule.uploadedGiB);
 }
 
 // How long a freeleech still runs, in ms. Zero once it's over, even before
