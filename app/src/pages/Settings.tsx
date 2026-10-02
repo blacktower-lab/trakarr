@@ -77,17 +77,13 @@ export function Settings() {
         <LocaleCard saved={settings.data} onSaved={settings.refresh} />
       ) : section === "security" ? (
         <PasswordCard />
+      ) : section === "notifications" ? (
+        <NtfyCard saved={settings.data} onSaved={settings.refresh} />
       ) : (
         // Blocks of the same size, as many to a row as fit.
         <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,26rem),1fr))] gap-6">
-          {section === "integrations" ? (
-            <>
-              <QbittorrentCard saved={settings.data} onSaved={settings.refresh} />
-              <ProwlarrCard saved={settings.data} onSaved={settings.refresh} />
-            </>
-          ) : (
-            <NtfyCard saved={settings.data} onSaved={settings.refresh} />
-          )}
+          <QbittorrentCard saved={settings.data} onSaved={settings.refresh} />
+          <ProwlarrCard saved={settings.data} onSaved={settings.refresh} />
         </div>
       )
     ) : (
