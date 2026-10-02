@@ -1,7 +1,9 @@
 /*
  * trakarr's theme, plain: HeroUI's Theme Builder with no hue or chroma, Inter,
- * small radius and small form radius. Exported as is from
+ * small radius and small form radius. Exported from
  * https://heroui.com/en/themes?base=0&chroma=0&formRadius=small&hue=0&lightness=0&radius=small
+ * except for the accent, which is the orange of the logo's magnet tips (#f0443a)
+ * in both modes, with white on it.
  *
  * It sits in the theme layer without a sublayer, like the export expects, so
  * --font-sans beats Tailwind's default. index.css defines --font-inter.
@@ -13,7 +15,7 @@
 [data-theme="light"],
 [data-theme="default"] {
   /* Theme Colors (Light Mode) */
-  --accent: oklch(0 0 0);
+  --accent: oklch(63.73% 0.2101 28.05);
   --accent-foreground: oklch(99.11% 0 0);
   --background: oklch(97.02% 0.0000 0.00);
   --border: oklch(90.00% 0.0000 0.00);
@@ -59,8 +61,8 @@
 [data-theme="dark"] {
   color-scheme: dark;
   /* Theme Colors (Dark Mode) */
-  --accent: oklch(0.9848 0 0);
-  --accent-foreground: oklch(15% 0.0000 0.00);
+  --accent: oklch(63.73% 0.2101 28.05);
+  --accent-foreground: oklch(99.11% 0 0);
   --background: oklch(12.00% 0.0000 0.00);
   --border: oklch(28.00% 0.0000 0.00);
   --danger: oklch(0.7044 0.1872 23.19);
