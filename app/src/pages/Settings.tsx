@@ -16,8 +16,9 @@ import {
   useMediaQuery,
   useOverlayState,
 } from "@heroui/react";
-import { CircleAlert, CircleCheck, PanelLeft, Unplug, Wrench } from "lucide-react";
+import { CircleAlert, CircleCheck, LockOpen, PanelLeft, Unplug, Wrench } from "lucide-react";
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
+import { useAuth } from "../components/AuthGate";
 import { Empty, Pending } from "../components/Empty";
 import { CheckboxField, FIELD_VARIANT, SecretInput, SelectField } from "../components/Form";
 import { Section } from "../components/Section";
@@ -62,7 +63,7 @@ export function Settings() {
   // narrow ones keep them in a drawer.
   const wide = useMediaQuery("(min-width: 768px)");
   // The sections that are built. The others are still empty.
-  const built = section === "system" || section === "integrations" || section === "notifications";
+  const built = section !== "api-keys" && section !== "time";
 
   const content =
     built && settings.data ? (
@@ -76,6 +77,8 @@ export function Settings() {
               <QbittorrentCard saved={settings.data} onSaved={settings.refresh} />
               <ProwlarrCard saved={settings.data} onSaved={settings.refresh} />
             </>
+          ) : section === "security" ? (
+            <PasswordCard />
           ) : (
             <NtfyCard saved={settings.data} onSaved={settings.refresh} />
           )}
@@ -341,6 +344,127 @@ function ProwlarrForm({ saved: settings, focus, onSave }: FormProps) {
         onChange={setApiKey}
         autoFocus={focus === "secret"}
       />
+    </EditForm>
+  );
+}
+
+// The dashboard's one password. With none set it's open, and signing out only
+// shows when there's one to sign in with.
+function PasswordCard() {
+  const { required, refresh } = useAuth();
+  const [dialog, setDialog] = useState({ open: false, session: 0, remove: false });
+  const show = (remove: boolean) => setDialog((current) => ({ open: true, session: current.session + 1, remove }));
+
+  const signOut = async () => {
+    try {
+      await api.logout();
+    } catch (error) {
+      toast.danger("Couldn't sign out", { description: (error as Error).message });
+      return;
+    }
+    await refresh();
+  };
+
+  // A failed change keeps the dialog open, so what was typed isn't lost.
+  const save = async (change: { current?: string; next: string }, done: string): Promise<boolean> => {
+    try {
+      await api.setPassword(change);
+    } catch (error) {
+      toast.danger("Couldn't change the password", { description: (error as Error).message });
+      return false;
+    }
+    toast.success(`Password ${done}`);
+    setDialog((current) => ({ ...current, open: false }));
+    await refresh();
+    return true;
+  };
+
+  return (
+    <>
+      <SettingsCard
+        title="Password"
+        actions={
+          required ? (
+            <>
+              <Button size="sm" variant="secondary" aria-label="Change password" onPress={() => show(false)}>
+                Change
+              </Button>
+              <Button size="sm" variant="secondary" aria-label="Remove password" onPress={() => show(true)}>
+                Remove
+              </Button>
+              <Button size="sm" variant="secondary" onPress={signOut}>
+                Sign out
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="secondary" aria-label="Set password" onPress={() => show(false)}>
+              Set
+            </Button>
+          )
+        }
+        body={required ? undefined : <Empty icon={LockOpen} title="No password" />}
+      />
+      <EditDialog
+        open={dialog.open}
+        onOpenChange={(open) => setDialog((current) => ({ ...current, open }))}
+      >
+        <PasswordForm key={dialog.session} required={required} remove={dialog.remove} onSave={save} />
+      </EditDialog>
+    </>
+  );
+}
+
+// server/src/config.ts
+const MIN_PASSWORD = 8;
+
+interface PasswordFormProps {
+  // Whether there's a password now, which a change has to know.
+  required: boolean;
+  // Takes the password away, instead of setting a new one.
+  remove: boolean;
+  onSave: (change: { current?: string; next: string }, done: string) => Promise<unknown>;
+}
+
+function PasswordForm({ required, remove, onSave }: PasswordFormProps) {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [again, setAgain] = useState("");
+  const tooShort = next !== "" && next.length < MIN_PASSWORD;
+  const differs = again !== "" && again !== next;
+  const valid = remove
+    ? current !== ""
+    : (!required || current !== "") && next.length >= MIN_PASSWORD && again === next;
+
+  return (
+    <EditForm
+      title={remove ? "Remove password" : required ? "Change password" : "Set password"}
+      submitLabel={remove ? "Remove" : "Save"}
+      valid={valid}
+      dirty
+      onSave={() =>
+        remove
+          ? onSave({ current, next: "" }, "removed")
+          : onSave({ ...(required && { current }), next }, required ? "changed" : "set")
+      }
+    >
+      {(required || remove) && <SecretInput label="Current password" value={current} onChange={setCurrent} autoFocus />}
+      {!remove && (
+        <>
+          <SecretInput
+            label="New password"
+            value={next}
+            onChange={setNext}
+            autoFocus={!required}
+            error={tooShort ? `Use at least ${MIN_PASSWORD} characters` : undefined}
+          />
+          <SecretInput
+            label="Repeat the new password"
+            value={again}
+            onChange={setAgain}
+            error={differs ? "The passwords don't match" : undefined}
+          />
+        </>
+      )}
     </EditForm>
   );
 }
@@ -676,6 +800,8 @@ function EditDialog({ open, onOpenChange, children }: EditDialogProps) {
 
 interface EditFormProps {
   title: string;
+  // What the button that saves says.
+  submitLabel?: string;
   valid: boolean;
   // Whether anything differs from the saved settings.
   dirty: boolean;
@@ -686,7 +812,7 @@ interface EditFormProps {
   children: ReactNode;
 }
 
-function EditForm({ title, valid, dirty, test, onSave, children }: EditFormProps) {
+function EditForm({ title, submitLabel = "Save", valid, dirty, test, onSave, children }: EditFormProps) {
   const formId = useId();
   const key = JSON.stringify(test?.values ?? []);
   const [tested, setTested] = useState<{ key: string; result: TestResult | "testing" } | null>(null);
@@ -740,7 +866,7 @@ function EditForm({ title, valid, dirty, test, onSave, children }: EditFormProps
           Cancel
         </Button>
         <Button type="submit" form={formId} isDisabled={!valid || !dirty || saving}>
-          Save
+          {submitLabel}
         </Button>
       </Modal.Footer>
     </>

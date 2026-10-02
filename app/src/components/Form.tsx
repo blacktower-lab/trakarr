@@ -1,4 +1,4 @@
-import { Button, Description, InputGroup, Label, ListBox, Select, Switch, TextField } from "@heroui/react";
+import { Button, Description, FieldError, InputGroup, Label, ListBox, Select, Switch, TextField } from "@heroui/react";
 import { Check, Eye, EyeOff } from "lucide-react";
 import { useId, useState } from "react";
 import { cx } from "../lib/cx";
@@ -134,15 +134,22 @@ interface SecretInputProps {
   value: string;
   onChange: (value: string) => void;
   autoFocus?: boolean;
+  error?: string;
 }
 
 // A password field with a button that shows or hides what was typed.
-export function SecretInput({ label, placeholder, value, onChange, autoFocus }: SecretInputProps) {
+export function SecretInput({ label, placeholder, value, onChange, autoFocus, error }: SecretInputProps) {
   const [shown, setShown] = useState(false);
   const Icon = shown ? EyeOff : Eye;
 
   return (
-    <TextField variant={FIELD_VARIANT} value={value} onChange={onChange} autoFocus={autoFocus}>
+    <TextField
+      variant={FIELD_VARIANT}
+      value={value}
+      onChange={onChange}
+      autoFocus={autoFocus}
+      isInvalid={error !== undefined}
+    >
       <Label>{label}</Label>
       <InputGroup>
         <InputGroup.Input type={shown ? "text" : "password"} placeholder={placeholder} autoComplete="off" />
@@ -158,6 +165,7 @@ export function SecretInput({ label, placeholder, value, onChange, autoFocus }: 
           </Button>
         </InputGroup.Suffix>
       </InputGroup>
+      <FieldError>{error}</FieldError>
     </TextField>
   );
 }

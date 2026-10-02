@@ -22,6 +22,7 @@ import {
   SlidersHorizontal,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
+import { AuthGate } from "./components/AuthGate";
 import { Listed } from "./components/Empty";
 import { Logo } from "./components/Logo";
 import "../../assets/wordmark.css";
@@ -83,7 +84,9 @@ export function App() {
     // The UI is in English, so HeroUI's number fields format ratios the same
     // way the rest of the page does, whatever the browser's language.
     <I18nProvider locale="en-US">
-      <Shell />
+      <AuthGate>
+        <Shell />
+      </AuthGate>
       <Toast.Provider />
     </I18nProvider>
   );

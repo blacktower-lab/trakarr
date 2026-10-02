@@ -162,7 +162,18 @@ export interface ProwlarrOptions {
   profiles: SyncProfile[];
 }
 
+// server/src/api.ts, GET /session: whether the dashboard asks for a password,
+// and whether this browser has signed in.
+export interface Session {
+  required: boolean;
+  authenticated: boolean;
+}
+
 const UNREACHABLE = "Can't reach trakarr";
+
+// Told when a request is turned away for having no session, say because it
+// expired, so the app goes back to the sign-in.
+let onUnauthorized: () => void = () => {};
 
 // Paths are relative because the UI is built with a relative base, so it works
 // from any path. Fails with the server's own message when it sends one.
@@ -184,11 +195,20 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   } catch {
     // Not JSON: something in front of trakarr answered, like a proxy with nothing behind it.
   }
+  if (res.status === 401 && path !== "login") onUnauthorized();
   if (!res.ok) throw new Error((data as { error?: string } | null)?.error ?? UNREACHABLE);
   return data as T;
 }
 
 export const api = {
+  onUnauthorized: (handler: () => void) => {
+    onUnauthorized = handler;
+  },
+  session: () => request<Session>("GET", "session"),
+  login: (password: string) => request<null>("POST", "login", { password }),
+  logout: () => request<null>("POST", "logout"),
+  // The current password is only needed when there is one. An empty new one removes it.
+  setPassword: (change: { current?: string; next: string }) => request<null>("POST", "password", change),
   status: () => request<Status>("GET", "status"),
   rules: () => request<RuleConfig[]>("GET", "rules"),
   createRule: (rule: RuleFields) => request<RuleConfig>("POST", "rules", rule),
