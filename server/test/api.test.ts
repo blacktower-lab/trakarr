@@ -243,6 +243,7 @@ test("bought upload is added a purchase at a time, and a freeleech starts and en
     domain: "harrier.example",
     bought: 30 * GIB,
     freeleech: null,
+    pinned: false,
   });
   assert.equal((await call("PATCH", path, { addBought: 30 * GIB })).body.bought, 60 * GIB);
   const tooMuch = await call("PATCH", path, { addBought: -61 * GIB });
@@ -273,4 +274,50 @@ test("bought upload is added a purchase at a time, and a freeleech starts and en
       ["tracker", "Freeleech on harrier.example for 24h"],
     ],
   );
+});
+
+test("a tracker is pinned and unpinned, kept in trackers.json only while it has something to keep, and logged when it changes", async () => {
+  const GIB = 1024 ** 3;
+  const kept = (domain: string) =>
+    (JSON.parse(readFileSync(join(dir, "trackers.json"), "utf8")) as { domain: string }[]).filter((t) => t.domain === domain);
+  const lines = (domain: string) =>
+    store
+      .logs({ levels: ["info"], query: domain, before: Infinity, limit: 10 })
+      .map((l) => [l.message, l.fields]);
+  const path = "/trackers/kite.example";
+
+  assert.deepEqual((await call("PATCH", path, { pinned: true })).body, {
+    domain: "kite.example",
+    bought: 0,
+    freeleech: null,
+    pinned: true,
+  });
+  assert.deepEqual(kept("kite.example"), [{ domain: "kite.example", bought: 0, freeleech: null, pinned: true }]);
+
+  // Pinning what's pinned changes nothing, and neither does buying upload.
+  assert.equal((await call("PATCH", path, { pinned: true })).body.pinned, true);
+  assert.equal((await call("PATCH", path, { addBought: GIB })).body.pinned, true);
+
+  // Unpinned with upload bought, it stays for the upload.
+  assert.equal((await call("PATCH", path, { pinned: false })).body.pinned, false);
+  assert.deepEqual(kept("kite.example"), [{ domain: "kite.example", bought: GIB, freeleech: null, pinned: false }]);
+
+  // Unpinned with nothing else, it goes.
+  const swift = "/trackers/swift.example";
+  await call("PATCH", swift, { pinned: true });
+  await call("PATCH", swift, { pinned: false });
+  assert.deepEqual(kept("swift.example"), []);
+
+  const invalid = await call("PATCH", path, { pinned: "yes" });
+  assert.deepEqual([invalid.status, invalid.body.error], [400, "pinned must be true or false"]);
+
+  assert.deepEqual(lines("kite.example"), [
+    ["Pinned kite.example", { pinned: "false → true" }],
+    ["Added 1 GiB of bought upload to kite.example", { bought: "0 GiB → 1 GiB" }],
+    ["Unpinned kite.example", { pinned: "true → false" }],
+  ]);
+  assert.deepEqual(lines("swift.example"), [
+    ["Pinned swift.example", { pinned: "false → true" }],
+    ["Unpinned swift.example", { pinned: "true → false" }],
+  ]);
 });

@@ -42,14 +42,16 @@ export interface TrackerQuota {
   // Bytes of upload bought with bonus points.
   bought: number;
   freeleech: Freeleech | null;
+  pinned: boolean;
 }
 
 // What PATCH /trackers/:domain takes: bytes of bought upload to add, negative
-// to take back a mistake, and a freeleech to start for so many hours, or null
-// to end it.
+// to take back a mistake, a freeleech to start for so many hours, or null to
+// end it, and whether the tracker is pinned to the top of the dashboard.
 export interface QuotaChange {
   addBought?: number;
   freeleechHours?: number | null;
+  pinned?: boolean;
 }
 
 // publicSettings(): secrets only say whether they're set.
@@ -119,6 +121,7 @@ export interface TrackerStatus extends Preview {
   ruleId: string | null;
   bought: number;
   freeleech: Freeleech | null;
+  pinned: boolean;
 }
 
 export interface HeldTorrent {

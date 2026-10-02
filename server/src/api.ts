@@ -109,18 +109,20 @@ export function createApi({ config, store, log, watcher }: Deps) {
   });
 
   // Changes what a tracker's site counts that qBittorrent doesn't: upload
-  // bought with bonus points, added a purchase at a time, and a freeleech.
+  // bought with bonus points, added a purchase at a time, and a freeleech. It
+  // also pins the tracker to the top of the dashboard, or unpins it.
   api.patch("/trackers/:domain", (req, res) => {
     const change = parseQuotaChange(req.params.domain, req.body);
     const { domain } = change;
     const trackers = config.trackers();
-    const old = trackers.find((tracker) => tracker.domain === domain) ?? { domain, bought: 0, freeleech: null };
+    const old = trackers.find((tracker) => tracker.domain === domain) ?? { domain, bought: 0, freeleech: null, pinned: false };
     const bought = old.bought + change.addBought;
     if (bought < 0) throw new ValidationError("That takes back more upload than was bought");
     const now = Date.now();
     const hours = change.freeleechHours;
     const freeleech = hours === undefined ? old.freeleech : hours === null ? null : { from: now, until: now + hours * HOUR };
-    const next = { domain, bought, freeleech };
+    const pinned = change.pinned ?? old.pinned;
+    const next = { domain, bought, freeleech, pinned };
     config.saveTrackers(
       trackers.some((tracker) => tracker.domain === domain)
         ? trackers.map((tracker) => (tracker.domain === domain ? next : tracker))
@@ -137,6 +139,9 @@ export function createApi({ config, store, log, watcher }: Deps) {
       changed("tracker", `Freeleech on ${domain} for ${hours}h`, { until: new Date(freeleech.until).toISOString() });
     } else if (!freeleech && old.freeleech) {
       changed("tracker", `Ended the freeleech on ${domain}`, { until: new Date(old.freeleech.until).toISOString() });
+    }
+    if (pinned !== old.pinned) {
+      changed("tracker", `${pinned ? "Pinned" : "Unpinned"} ${domain}`, { pinned: `${old.pinned} → ${pinned}` });
     }
     res.json(next);
   });

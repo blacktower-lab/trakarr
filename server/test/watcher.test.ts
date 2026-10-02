@@ -269,7 +269,7 @@ test("the status lists every tracker the torrents announce to, with its rule", a
   await watcher.tick();
 
   assert.deepEqual(watcher.status().trackers, [
-    { domain: "open.example", ruleId: null, torrents: 1, uploaded: 30, downloaded: 10, bought: 0, freeleech: null },
+    { domain: "open.example", ruleId: null, torrents: 1, uploaded: 30, downloaded: 10, bought: 0, freeleech: null, pinned: false },
     {
       domain: "tracker.kestrel.example",
       ruleId: "kestrel",
@@ -278,6 +278,7 @@ test("the status lists every tracker the torrents announce to, with its rule", a
       downloaded: 110,
       bought: 0,
       freeleech: null,
+      pinned: false,
     },
   ]);
   assert.deepEqual(messages(), [["Found trackers", { trackers: 2, torrents: 3 }]]);
@@ -296,13 +297,34 @@ test("the status lists every tracker the torrents announce to, with its rule", a
   ]);
 });
 
+test("the status says which trackers are pinned, and a freeleech ending keeps the pin", async () => {
+  seedBelowLimit();
+  fake.torrents.set("open", torrent({ uploaded: 30, downloaded: 10, trackers: ["udp://open.example:1337/announce"] }));
+  const { watcher, config } = setup();
+  const now = Date.now();
+  config.saveTrackers([
+    { domain: "tracker.kestrel.example", bought: 0, freeleech: { from: now - 60_000, until: now }, pinned: true },
+  ]);
+
+  await watcher.tick();
+
+  assert.deepEqual(
+    watcher.status().trackers.map((t) => [t.domain, t.pinned]),
+    [
+      ["open.example", false],
+      ["tracker.kestrel.example", true],
+    ],
+  );
+  assert.deepEqual(config.trackers(), [{ domain: "tracker.kestrel.example", bought: 0, freeleech: null, pinned: true }]);
+});
+
 test("upload bought on a tracker counts toward its rule's ratio", async () => {
   seedBelowLimit();
   const { watcher, config, store } = setup();
   await watcher.tick();
 
   // 400 + 1000 bought / 1100 = 1.273, past the release ratio.
-  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 1000, freeleech: null }]);
+  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 1000, freeleech: null, pinned: false }]);
   fake.calls = [];
   await watcher.tick();
 
@@ -322,7 +344,7 @@ test("on a freeleech, downloads don't count and aren't held, and the rule takes 
   assert.equal(rule()?.state, "held");
 
   const now = Date.now();
-  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 0, freeleech: { from: now - 60_000, until: now + HOUR } }]);
+  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 0, freeleech: { from: now - 60_000, until: now + HOUR }, pinned: false }]);
   fake.calls = [];
   await watcher.tick();
   assert.deepEqual(fake.calls, ["setDownloadLimit dl -1", "removeTags dl trakarr-hold"]);
@@ -333,7 +355,7 @@ test("on a freeleech, downloads don't count and aren't held, and the rule takes 
   assert.deepEqual([rule()?.downloaded, rule()?.state], [1100, "held"]);
 
   // Over: what downloads from now on counts, and the held rule holds again.
-  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 0, freeleech: { from: now - 60_000, until: Date.now() } }]);
+  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 0, freeleech: { from: now - 60_000, until: Date.now() }, pinned: false }]);
   fake.torrents.get("dl")!.downloaded += 100;
   fake.calls = [];
   await watcher.tick();
@@ -350,7 +372,7 @@ test("a freeleech that starts between two polls only counts from the next one", 
 
   fake.torrents.get("dl")!.downloaded += 500;
   const from = watcher.status().qbittorrent.lastUpdate! + 1;
-  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 0, freeleech: { from, until: from + HOUR } }]);
+  config.saveTrackers([{ domain: "tracker.kestrel.example", bought: 0, freeleech: { from, until: from + HOUR }, pinned: false }]);
   await watcher.tick();
 
   assert.equal(watcher.status().rules[0]?.downloaded, 1600);

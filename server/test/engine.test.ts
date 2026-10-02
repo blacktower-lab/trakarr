@@ -75,8 +75,8 @@ test("bought upload counts on its domain, and what was downloaded on a freeleech
     entry({ hash: "b", tags: ["kestrel"], uploaded: 5, downloaded: 5 }),
   ];
   const quotas = [
-    { domain: "tracker.kestrel.example", bought: 40, freeleech: null },
-    { domain: "meridian.example", bought: 1000, freeleech: null },
+    { domain: "tracker.kestrel.example", bought: 40, freeleech: null, pinned: false },
+    { domain: "meridian.example", bought: 1000, freeleech: null, pinned: false },
   ];
   assert.deepEqual(totals(rule, ledger, quotas), { uploaded: 55, downloaded: 25 });
   // Bought upload belongs to a domain, so a match on tags alone gets none.

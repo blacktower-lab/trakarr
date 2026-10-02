@@ -27,12 +27,14 @@ export interface Rule {
 }
 
 // What a tracker's site counts that qBittorrent doesn't: upload bought with
-// bonus points, and a freeleech, while downloads don't count.
+// bonus points, and a freeleech, while downloads don't count. It also keeps
+// whether the dashboard pins the tracker to the top of its list.
 export interface TrackerQuota {
   domain: string;
   // Bytes of upload bought, on top of what its torrents uploaded.
   bought: number;
   freeleech: Freeleech | null;
+  pinned: boolean;
 }
 
 export interface Freeleech {
@@ -42,10 +44,12 @@ export interface Freeleech {
 
 // What PATCH /trackers/:domain changes. Bought upload can go down, to take
 // back a mistake. A freeleech starts now for so many hours, or null ends it.
+// Pinning is set, not toggled.
 export interface QuotaChange {
   domain: string;
   addBought: number;
   freeleechHours: number | null | undefined;
+  pinned: boolean | undefined;
 }
 
 // A freeleech is at most a month long.
@@ -98,9 +102,9 @@ export function openConfig(dir = CONFIG_DIR) {
       writeJson(rulesPath, next);
       rules = next;
     },
-    // A tracker with nothing bought and no freeleech has nothing to keep.
+    // A tracker with nothing bought, no freeleech and no pin has nothing to keep.
     saveTrackers(next: TrackerQuota[]) {
-      const kept = next.filter((tracker) => tracker.bought > 0 || tracker.freeleech !== null);
+      const kept = next.filter((tracker) => tracker.bought > 0 || tracker.freeleech !== null || tracker.pinned);
       writeJson(trackersPath, kept);
       trackers = kept;
     },
@@ -188,6 +192,7 @@ function parseTracker(input: unknown): TrackerQuota {
     domain: domainOf(t.domain),
     bought: atLeastZero(t.bought ?? 0, "bought"),
     freeleech: t.freeleech == null ? null : parseFreeleech(t.freeleech),
+    pinned: t.pinned === undefined ? false : boolean(t.pinned, "pinned"),
   };
 }
 
@@ -210,6 +215,7 @@ export function parseQuotaChange(domain: unknown, input: unknown): QuotaChange {
       c.freeleechHours === undefined || c.freeleechHours === null
         ? c.freeleechHours
         : whole(c.freeleechHours, "freeleechHours", 1, MAX_FREELEECH_HOURS),
+    pinned: c.pinned === undefined ? undefined : boolean(c.pinned, "pinned"),
   };
 }
 

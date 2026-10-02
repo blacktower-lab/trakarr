@@ -476,7 +476,8 @@ export function createWatcher({ config, store, log }: { config: Config; store: S
         ...preview(rule),
       })),
       // Every tracker the torrents in qBittorrent announce to, with what it
-      // reaches, the first rule whose domains take it in, and its quota.
+      // reaches, the first rule whose domains take it in, its quota and whether
+      // it's pinned.
       trackers: [...domains].sort().map((domain) => {
         const quota = quotas.find((q) => q.domain === domain);
         return {
@@ -485,6 +486,7 @@ export function createWatcher({ config, store, log }: { config: Config; store: S
           ...preview({ tags: [], domains: [domain] }),
           bought: quota?.bought ?? 0,
           freeleech: quota?.freeleech ?? null,
+          pinned: quota?.pinned ?? false,
         };
       }),
       held: [...current.values()].map((h) => ({

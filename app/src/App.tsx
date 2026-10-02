@@ -9,6 +9,8 @@ import {
   LayoutDashboard,
   Pause,
   Pencil,
+  Pin,
+  PinOff,
   Play,
   Plus,
   RadioTower,
@@ -49,6 +51,7 @@ import {
   gaugeOf,
   mergeRules,
   minutesSince,
+  pinnedFirst,
   ratioOf,
   sortTrackers,
   toReleaseOf,
@@ -172,6 +175,20 @@ function Shell() {
     toast.success(`${domain} quota saved`);
   };
 
+  const togglePin = async (tracker: TrackerRow) => {
+    const { domain } = tracker;
+    if (!domain) return;
+    const pinned = !tracker.pinned;
+    try {
+      await api.updateTracker(domain, { pinned });
+    } catch (error) {
+      toast.danger(`Couldn't ${pinned ? "pin" : "unpin"} ${domain}`, { description: (error as Error).message });
+      return;
+    }
+    live.refresh();
+    toast(`${domain} ${pinned ? "pinned" : "unpinned"}`);
+  };
+
   const toggleEnabled = async (rule: Rule) => {
     const enabled = !rule.enabled;
     try {
@@ -211,6 +228,7 @@ function Shell() {
             onEdit={(rule) => openEditor(rule)}
             onNew={(draft) => openEditor(undefined, draft)}
             onChangeQuota={openQuota}
+            onTogglePin={togglePin}
             onShowLogs={() => setPage("logs")}
             onToggleEnabled={toggleEnabled}
           />
@@ -295,18 +313,20 @@ interface DashboardProps {
   // Opens a new rule on a draft.
   onNew: (draft: Partial<Rule>) => void;
   onChangeQuota: (tracker: TrackerRow) => void;
+  onTogglePin: (tracker: TrackerRow) => void;
   onShowLogs: () => void;
   onToggleEnabled: (rule: Rule) => void;
 }
 
-function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onShowLogs, onToggleEnabled }: DashboardProps) {
+function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onTogglePin, onShowLogs, onToggleEnabled }: DashboardProps) {
   const rules = live?.rules ?? [];
   // In their usual order until a column is sorted.
   const [sort, setSort] = useState<SortDescriptor>();
   const [search, setSearch] = useState("");
   const rows = trackerRows(rules, live?.status.trackers ?? []);
   const matching = filterTrackers(rows, search);
-  const trackers = sort ? sortTrackers(matching, sort.column as TrackerSort, sort.direction) : matching;
+  // The pinned ones stay on top, whatever the sort.
+  const trackers = pinnedFirst(sort ? sortTrackers(matching, sort.column as TrackerSort, sort.direction) : matching);
   // A page past the last, after trackers went away, shows the last one.
   const [trackerPage, setTrackerPage] = useState(1);
   const page = Math.min(trackerPage, pageCount(trackers.length, TRACKERS_PER_PAGE));
@@ -393,7 +413,7 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onShowLogs, onTo
                     return (
                       <Table.Row key={tracker.key} id={tracker.key}>
                         <Table.Cell>
-                          <TrackerName tracker={tracker} />
+                          <TrackerName tracker={tracker} onTogglePin={onTogglePin} />
                         </Table.Cell>
                         <Table.Cell>
                           <span className={cx(!rule && FADED)}>
@@ -422,6 +442,7 @@ function Dashboard({ live, error, onEdit, onNew, onChangeQuota, onShowLogs, onTo
                             onEdit={onEdit}
                             onNew={onNew}
                             onChangeQuota={onChangeQuota}
+                            onTogglePin={onTogglePin}
                             onToggleEnabled={onToggleEnabled}
                           />
                         </Table.Cell>
@@ -554,18 +575,26 @@ interface TrackerActionsProps {
   onEdit: (rule: Rule) => void;
   onNew: (draft: Partial<Rule>) => void;
   onChangeQuota: (tracker: TrackerRow) => void;
+  onTogglePin: (tracker: TrackerRow) => void;
   onToggleEnabled: (rule: Rule) => void;
 }
 
 // A tracker's menu: its rule's actions, or one to start a rule on its domain,
-// and its quota. A rule's own row has no domain, so no quota.
-function TrackerActions({ tracker, onEdit, onNew, onChangeQuota, onToggleEnabled }: TrackerActionsProps) {
+// and its quota and pin. A rule's own row has no domain, so neither.
+function TrackerActions({ tracker, onEdit, onNew, onChangeQuota, onTogglePin, onToggleEnabled }: TrackerActionsProps) {
   const { rule } = tracker;
-  const quota: RowAction[] = tracker.domain ? [{ id: "quota", label: "Change quota", icon: Coins }] : [];
+  const perDomain: RowAction[] = tracker.domain
+    ? [
+        { id: "quota", label: "Change quota", icon: Coins },
+        tracker.pinned
+          ? { id: "pin", label: "Unpin tracker", icon: PinOff }
+          : { id: "pin", label: "Pin tracker", icon: Pin },
+      ]
+    : [];
   const items: RowAction[] = rule
     ? [
         { id: "edit", label: "Edit rule", icon: Pencil },
-        ...quota,
+        ...perDomain,
         {
           id: "toggle",
           label: rule.enabled ? "Pause rule" : "Resume rule",
@@ -573,10 +602,11 @@ function TrackerActions({ tracker, onEdit, onNew, onChangeQuota, onToggleEnabled
           danger: rule.enabled,
         },
       ]
-    : [{ id: "add", label: "Add rule", icon: Plus }, ...quota];
+    : [{ id: "add", label: "Add rule", icon: Plus }, ...perDomain];
 
   const act = (id: string) => {
     if (id === "quota") onChangeQuota(tracker);
+    else if (id === "pin") onTogglePin(tracker);
     else if (!rule) {
       onNew({
         name: tracker.name,
@@ -598,14 +628,38 @@ function progressOf(torrent: HeldTorrent): string {
 }
 
 // A tracker with a rule shows the rule's state in its dot. One with none is
-// faded, with a gray dot: only enabled rules have colors. The torrents it has
+// faded, with a gray dot: only enabled rules have colors. A pinned tracker's dot
+// is a pin in the same color, and pressing it pins or unpins. The torrents it has
 // follow its name.
-function TrackerName({ tracker }: { tracker: TrackerRow }) {
-  const { rule } = tracker;
+function TrackerName({ tracker, onTogglePin }: { tracker: TrackerRow; onTogglePin: (tracker: TrackerRow) => void }) {
+  const { rule, pinned } = tracker;
+  const [label, color] = statusOf(rule);
+  const mark = <StatusMark label={label} color={color} pinned={pinned} />;
 
   return (
-    <span className={cx("inline-flex items-center gap-2.5", !rule && FADED)}>
-      {rule ? <StatusDot rule={rule} /> : <Dot label="No rule" color="bg-foreground" />}
+    // Not inline-flex: that row sits on the text's baseline, which moves with
+    // what's in the mark and lifted the name of a pinned tracker.
+    <span className={cx("flex items-center gap-2.5", !rule && FADED)}>
+      {tracker.domain ? (
+        // A plain button, since HeroUI's all have a background on hover. It's wider
+        // than the mark: its negative margins give the room back, so the name stays
+        // where it is.
+        <span className="-mx-2.5 flex" title={`${label} · ${pinned ? "Unpin" : "Pin"} tracker`}>
+          <button
+            type="button"
+            aria-label={`${pinned ? "Unpin" : "Pin"} ${tracker.name}, ${label}`}
+            onClick={() => onTogglePin(tracker)}
+            className="flex size-7 cursor-(--cursor-interactive) items-center justify-center rounded-md outline-none focus-visible:status-focused"
+          >
+            {mark}
+          </button>
+        </span>
+      ) : (
+        // A rule's own row has no domain to pin, so its mark is no button.
+        <span title={label} className="flex">
+          {mark}
+        </span>
+      )}
       <span>
         <span className="font-medium">{tracker.name}</span>{" "}
         <span className="text-muted tabular-nums">({tracker.torrents})</span>
@@ -669,20 +723,20 @@ function FreeleechBuffer() {
   );
 }
 
-function StatusDot({ rule }: { rule: Rule }) {
-  const [label, color] = !rule.enabled
-    ? ["Paused", "bg-foreground/30"]
-    : rule.state === "held"
-      ? ["Held", "bg-danger"]
-      : ["OK", "bg-success"];
-  return <Dot label={label} color={color} />;
+function statusOf(rule: Rule | undefined): [label: string, color: string] {
+  if (!rule) return ["No rule", "text-foreground"];
+  if (!rule.enabled) return ["Paused", "text-foreground/30"];
+  return rule.state === "held" ? ["Held", "text-danger"] : ["OK", "text-success"];
 }
 
 // HeroUI's Badge dot only sits on the corner of another element, so the status
-// dots next to text are drawn here.
-function Dot({ label, color }: { label: string; color: string }) {
+// dots next to text are drawn here. A pin takes the dot's place and color: it
+// overflows the dot's room instead of widening it, so the names line up whether
+// a tracker is pinned or not.
+function StatusMark({ label, color, pinned }: { label: string; color: string; pinned: boolean }) {
   return (
-    <span title={label} className={cx("size-2 shrink-0 rounded-full", color)}>
+    <span className={cx("flex size-2 shrink-0 items-center justify-center", color)}>
+      {pinned ? <Pin aria-hidden size={16} className="shrink-0" /> : <span aria-hidden className="size-2 rounded-full bg-current" />}
       <span className="sr-only">{label}</span>
     </span>
   );

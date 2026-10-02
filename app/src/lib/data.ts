@@ -58,6 +58,8 @@ export interface TrackerRow {
   downloadedGiB: number;
   boughtGiB: number;
   freeleech: Freeleech | null;
+  // Pinned trackers go to the top of the list. A rule's row has no domain to pin.
+  pinned: boolean;
   rule: Rule | undefined;
 }
 
@@ -73,6 +75,7 @@ export function trackerRows(rules: Rule[], trackers: TrackerStatus[]): TrackerRo
     downloadedGiB: toGiB(tracker.downloaded),
     boughtGiB: toGiB(tracker.bought),
     freeleech: tracker.freeleech,
+    pinned: tracker.pinned,
     rule,
   });
   const ruled = rules.flatMap((rule) => {
@@ -90,6 +93,7 @@ export function trackerRows(rules: Rule[], trackers: TrackerStatus[]): TrackerRo
         downloadedGiB,
         boughtGiB: 0,
         freeleech: null,
+        pinned: false,
         rule,
       },
     ];
@@ -127,6 +131,11 @@ export function gaugeOf(row: TrackerRow): Rule {
 export function filterTrackers(rows: TrackerRow[], query: string): TrackerRow[] {
   const needle = query.trim().toLowerCase();
   return needle ? rows.filter((row) => row.name.toLowerCase().includes(needle)) : rows;
+}
+
+// The pinned trackers first, each group in the order it came.
+export function pinnedFirst(rows: TrackerRow[]): TrackerRow[] {
+  return [...rows.filter((row) => row.pinned), ...rows.filter((row) => !row.pinned)];
 }
 
 export type TrackerSort = "name" | "ratio" | "downloaded" | "buffer";
