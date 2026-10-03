@@ -58,12 +58,13 @@ export interface Freeleech {
   until: number;
 }
 
-// What PATCH /trackers/:domain changes. Bought upload can go down, to take
-// back a mistake. A freeleech starts now for so many hours, or null ends it.
-// Pinning is set, not toggled.
+// What PATCH /trackers/:domain changes. Purchases are added, with bytes below 0
+// to take back a mistake, and deleted by id, both at once. A freeleech starts
+// now for so many hours, or null ends it. Pinning is set, not toggled.
 export interface QuotaChange {
   domain: string;
-  addBought: number;
+  addPurchases: number[];
+  deletePurchases: string[];
   freeleechHours: number | null | undefined;
   pinned: boolean | undefined;
 }
@@ -303,12 +304,17 @@ function parsePurchases(t: Record<string, unknown>): Purchase[] {
   if (!Array.isArray(t.purchases)) throw new ValidationError("purchases must be a list");
   return t.purchases.map((input) => {
     const p = object(input, "purchase");
-    const bytes = number(p.bytes, "purchase.bytes");
-    if (!Number.isInteger(bytes) || bytes === 0) throw new ValidationError("purchase.bytes must be whole bytes, not 0");
     const purchaseId = text(p.id, "purchase.id");
     if (purchaseId === "") throw new ValidationError("purchase.id is required");
-    return { id: purchaseId, bytes, at: p.at == null ? null : atLeastZero(p.at, "purchase.at") };
+    return { id: purchaseId, bytes: purchaseBytes(p.bytes, "purchase.bytes"), at: p.at == null ? null : atLeastZero(p.at, "purchase.at") };
   });
+}
+
+// Whole bytes, bought or taken back, never 0.
+function purchaseBytes(value: unknown, name: string): number {
+  const bytes = number(value, name);
+  if (!Number.isInteger(bytes) || bytes === 0) throw new ValidationError(`${name} must be whole bytes, not 0`);
+  return bytes;
 }
 
 function parseFreeleech(input: unknown): Freeleech {
@@ -321,11 +327,11 @@ function parseFreeleech(input: unknown): Freeleech {
 
 export function parseQuotaChange(domain: unknown, input: unknown): QuotaChange {
   const c = object(input ?? {}, "change");
-  const addBought = c.addBought === undefined ? 0 : number(c.addBought, "addBought");
-  if (!Number.isInteger(addBought)) throw new ValidationError("addBought must be whole bytes");
+  if (c.addPurchases !== undefined && !Array.isArray(c.addPurchases)) throw new ValidationError("addPurchases must be a list");
   return {
     domain: domainOf(domain),
-    addBought,
+    addPurchases: (c.addPurchases ?? []).map((bytes: unknown) => purchaseBytes(bytes, "addPurchases")),
+    deletePurchases: c.deletePurchases === undefined ? [] : unique(list(c.deletePurchases, "deletePurchases")),
     freeleechHours:
       c.freeleechHours === undefined || c.freeleechHours === null
         ? c.freeleechHours

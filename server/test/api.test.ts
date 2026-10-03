@@ -258,7 +258,7 @@ test("everything the UI does is logged, with what it changed and never a secret"
   assert.equal(all.includes("wrong"), false);
 });
 
-test("bought upload is added a purchase at a time, and a freeleech starts and ends, all logged", async () => {
+test("bought upload is added as purchases, and a freeleech starts and ends, all logged", async () => {
   const GIB = 1024 ** 3;
   const path = "/trackers/harrier.example";
   const lines = () =>
@@ -270,7 +270,7 @@ test("bought upload is added a purchase at a time, and a freeleech starts and en
 
   // Each purchase is kept with its own id and the time it was made.
   const opened = Date.now();
-  const first = (await call("PATCH", path, { addBought: 30 * GIB })).body;
+  const first = (await call("PATCH", path, { addPurchases: [30 * GIB] })).body;
   const [purchase] = first.purchases;
   assert.equal(typeof purchase.id, "string");
   assert.equal(purchase.at >= opened, true);
@@ -280,11 +280,11 @@ test("bought upload is added a purchase at a time, and a freeleech starts and en
     freeleech: null,
     pinned: false,
   });
-  const second = (await call("PATCH", path, { addBought: 30 * GIB })).body;
+  const second = (await call("PATCH", path, { addPurchases: [30 * GIB] })).body;
   assert.deepEqual([second.purchases.length, bought(second)], [2, 60 * GIB]);
-  const tooMuch = await call("PATCH", path, { addBought: -61 * GIB });
+  const tooMuch = await call("PATCH", path, { addPurchases: [-61 * GIB] });
   assert.deepEqual([tooMuch.status, tooMuch.body.error], [400, "That takes back more upload than was bought"]);
-  const taken = (await call("PATCH", path, { addBought: -10 * GIB })).body;
+  const taken = (await call("PATCH", path, { addPurchases: [-10 * GIB] })).body;
   assert.deepEqual([taken.purchases.length, bought(taken)], [3, 50 * GIB]);
 
   const started = Date.now();
@@ -294,7 +294,10 @@ test("bought upload is added a purchase at a time, and a freeleech starts and en
   assert.equal((await call("PATCH", path, { freeleechHours: null })).body.freeleech, null);
 
   assert.equal((await call("PATCH", path, { freeleechHours: 0 })).status, 400);
-  assert.equal((await call("PATCH", "/trackers/nope", { addBought: GIB })).status, 400);
+  assert.equal((await call("PATCH", "/trackers/nope", { addPurchases: [GIB] })).status, 400);
+  for (const addPurchases of [GIB, [0], [1.5], ["1"]]) {
+    assert.equal((await call("PATCH", path, { addPurchases })).status, 400);
+  }
 
   const until = new Date(freeleech.until).toISOString();
   assert.deepEqual(lines(), [
@@ -313,49 +316,62 @@ test("bought upload is added a purchase at a time, and a freeleech starts and en
   );
 });
 
-test("a purchase is deleted from a tracker's history, which takes its upload off what was bought, all logged", async () => {
+test("purchases are added and deleted together, which takes their upload on and off what was bought, all logged", async () => {
   const GIB = 1024 ** 3;
   const domain = "heron.example";
   const path = `/trackers/${domain}`;
   const kept = () =>
     (JSON.parse(readFileSync(join(dir, "trackers.json"), "utf8")) as { domain: string; purchases: unknown[] }[]).filter((t) => t.domain === domain);
   const lines = () =>
-    store.logs({ levels: ["info"], query: domain, before: Infinity, limit: 10 }).map((l) => [l.message, l.fields]);
+    store.logs({ levels: ["info"], query: domain, before: Infinity, limit: 20 }).map((l) => [l.message, l.fields]);
   const bought = (body: { purchases: { bytes: number }[] }) => body.purchases.reduce((sum, p) => sum + p.bytes, 0);
+  const day = (at: number) => new Date(at).toISOString();
 
-  await call("PATCH", path, { addBought: 30 * GIB });
-  await call("PATCH", path, { addBought: 10 * GIB });
-  const [a, b, c] = (await call("PATCH", path, { addBought: -35 * GIB })).body.purchases;
+  const [a, b, c] = (await call("PATCH", path, { addPurchases: [30 * GIB, 10 * GIB, -35 * GIB] })).body.purchases;
+  assert.deepEqual([a.bytes, b.bytes, c.bytes], [30 * GIB, 10 * GIB, -35 * GIB]);
 
   // Taking the 30 off would leave less than nothing with the 35 taken back.
-  const tooMuch = await call("DELETE", `${path}/purchases/${a.id}`);
+  const tooMuch = await call("PATCH", path, { deletePurchases: [a.id] });
   assert.deepEqual([tooMuch.status, tooMuch.body.error], [400, "That takes back more upload than was bought"]);
   assert.equal(kept()[0].purchases.length, 3);
 
   // A take-back is deleted like a purchase, and the upload comes back.
-  const putBack = await call("DELETE", `${path}/purchases/${c.id}`);
+  const putBack = await call("PATCH", path, { deletePurchases: [c.id] });
   assert.equal(putBack.status, 200);
   assert.deepEqual(putBack.body.purchases, [a, b]);
   assert.equal(bought(putBack.body), 40 * GIB);
 
-  const deleted = await call("DELETE", `${path}/purchases/${a.id}`);
-  assert.deepEqual(deleted.body, { domain, purchases: [b], freeleech: null, pinned: false });
-  assert.deepEqual(kept()[0].purchases, [b]);
+  // Both at once, so the 30 can go as long as what's added covers the 35 taken back.
+  const [, , d] = (await call("PATCH", path, { addPurchases: [-35 * GIB] })).body.purchases;
+  const swapped = await call("PATCH", path, { addPurchases: [30 * GIB], deletePurchases: [a.id] });
+  assert.equal(swapped.status, 200);
+  const [, , e] = swapped.body.purchases;
+  assert.deepEqual(swapped.body.purchases, [b, d, { id: e.id, bytes: 30 * GIB, at: e.at }]);
+  assert.equal(bought(swapped.body), 5 * GIB);
+  assert.deepEqual(kept()[0].purchases, swapped.body.purchases);
 
-  assert.deepEqual((await call("DELETE", `${path}/purchases/nope`)).status, 404);
-  assert.deepEqual((await call("DELETE", `/trackers/nope.example/purchases/${b.id}`)).status, 404);
+  // A purchase that isn't there changes nothing, and one named twice is deleted once.
+  const missing = await call("PATCH", path, { addPurchases: [GIB], deletePurchases: ["nope"] });
+  assert.deepEqual([missing.status, missing.body.error], [400, "No such purchase"]);
+  assert.deepEqual(kept()[0].purchases, swapped.body.purchases);
+  assert.equal((await call("PATCH", path, { deletePurchases: [d.id, d.id] })).status, 200);
+  assert.equal((await call("PATCH", path, { deletePurchases: "nope" })).status, 400);
 
-  // Unpinned and with no purchases left, there's nothing to keep.
-  assert.equal((await call("DELETE", `${path}/purchases/${b.id}`)).status, 200);
+  // With no purchases left and nothing pinned, there's nothing to keep.
+  assert.equal((await call("PATCH", path, { deletePurchases: [b.id, e.id] })).status, 200);
   assert.deepEqual(kept(), []);
 
   assert.deepEqual(lines(), [
     [`Added 30 GiB of bought upload to ${domain}`, { bought: "0 GiB → 30 GiB" }],
     [`Added 10 GiB of bought upload to ${domain}`, { bought: "30 GiB → 40 GiB" }],
     [`Took back 35 GiB of bought upload from ${domain}`, { bought: "40 GiB → 5 GiB" }],
-    [`Deleted a take-back of 35 GiB from ${domain}`, { bought: "5 GiB → 40 GiB", at: new Date(c.at).toISOString() }],
-    [`Deleted a purchase of 30 GiB from ${domain}`, { bought: "40 GiB → 10 GiB", at: new Date(a.at).toISOString() }],
-    [`Deleted a purchase of 10 GiB from ${domain}`, { bought: "10 GiB → 0 GiB", at: new Date(b.at).toISOString() }],
+    [`Deleted a take-back of 35 GiB from ${domain}`, { bought: "5 GiB → 40 GiB", at: day(c.at) }],
+    [`Took back 35 GiB of bought upload from ${domain}`, { bought: "40 GiB → 5 GiB" }],
+    [`Added 30 GiB of bought upload to ${domain}`, { bought: "5 GiB → 35 GiB" }],
+    [`Deleted a purchase of 30 GiB from ${domain}`, { bought: "35 GiB → 5 GiB", at: day(a.at) }],
+    [`Deleted a take-back of 35 GiB from ${domain}`, { bought: "5 GiB → 40 GiB", at: day(d.at) }],
+    [`Deleted a purchase of 10 GiB from ${domain}`, { bought: "40 GiB → 30 GiB", at: day(b.at) }],
+    [`Deleted a purchase of 30 GiB from ${domain}`, { bought: "30 GiB → 0 GiB", at: day(e.at) }],
   ]);
 });
 
@@ -379,7 +395,7 @@ test("a tracker is pinned and unpinned, kept in trackers.json only while it has 
 
   // Pinning what's pinned changes nothing, and neither does buying upload.
   assert.equal((await call("PATCH", path, { pinned: true })).body.pinned, true);
-  const bought = await call("PATCH", path, { addBought: GIB });
+  const bought = await call("PATCH", path, { addPurchases: [GIB] });
   assert.equal(bought.body.pinned, true);
 
   // Unpinned with upload bought, it stays for the upload.

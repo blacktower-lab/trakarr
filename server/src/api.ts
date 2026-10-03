@@ -199,29 +199,49 @@ export function createApi({ config, store, log, watcher }: Deps) {
     );
   }
 
-  // Changes what a tracker's site counts that qBittorrent doesn't: upload
-  // bought with bonus points, added a purchase at a time, and a freeleech. It
-  // also pins the tracker to the top of the dashboard, or unpins it.
+  // Changes what a tracker's site counts that qBittorrent doesn't: the
+  // purchases of upload bought with bonus points, added and deleted together,
+  // and a freeleech. It also pins the tracker to the top of the dashboard, or
+  // unpins it.
   api.patch("/trackers/:domain", (req, res) => {
     const change = parseQuotaChange(req.params.domain, req.body);
     const { domain } = change;
     const old = config.trackers().find((tracker) => tracker.domain === domain) ?? { domain, purchases: [], freeleech: null, pinned: false };
-    const oldBought = boughtOf(old);
-    const bought = oldBought + change.addBought;
-    if (bought < 0) throw new ValidationError("That takes back more upload than was bought");
     const now = Date.now();
+    const deleted = change.deletePurchases.map((id) => {
+      const purchase = old.purchases.find((p) => p.id === id);
+      if (!purchase) throw new ValidationError("No such purchase");
+      return purchase;
+    });
+    const added = change.addPurchases.map((bytes) => ({ id: randomUUID(), bytes, at: now }));
+    const purchases = [...old.purchases.filter((p) => !deleted.includes(p)), ...added];
+    // A purchase that took upload back can be deleted too, and one can take back
+    // more than was bought, so what's left could be less than nothing.
+    if (boughtOf({ purchases }) < 0) throw new ValidationError("That takes back more upload than was bought");
     const hours = change.freeleechHours;
     const freeleech = hours === undefined ? old.freeleech : hours === null ? null : { from: now, until: now + hours * HOUR };
     const pinned = change.pinned ?? old.pinned;
-    const purchases =
-      change.addBought === 0 ? old.purchases : [...old.purchases, { id: randomUUID(), bytes: change.addBought, at: now }];
     const next = { domain, purchases, freeleech, pinned };
     saveTracker(next);
 
-    if (change.addBought !== 0) {
-      const what = `${formatGiB(Math.abs(change.addBought))} of bought upload`;
-      changed("tracker", change.addBought > 0 ? `Added ${what} to ${domain}` : `Took back ${what} from ${domain}`, {
-        bought: `${formatGiB(oldBought)} → ${formatGiB(bought)}`,
+    // Each purchase logs the total bought it moved, added first and then deleted.
+    let bought = boughtOf(old);
+    const moved = (bytes: number) => {
+      const from = bought;
+      bought += bytes;
+      return `${formatGiB(from)} → ${formatGiB(bought)}`;
+    };
+    for (const purchase of added) {
+      const what = `${formatGiB(Math.abs(purchase.bytes))} of bought upload`;
+      changed("tracker", purchase.bytes > 0 ? `Added ${what} to ${domain}` : `Took back ${what} from ${domain}`, {
+        bought: moved(purchase.bytes),
+      });
+    }
+    for (const purchase of deleted) {
+      const what = `${purchase.bytes > 0 ? "purchase" : "take-back"} of ${formatGiB(Math.abs(purchase.bytes))}`;
+      changed("tracker", `Deleted a ${what} from ${domain}`, {
+        bought: moved(-purchase.bytes),
+        at: purchase.at === null ? "no date" : new Date(purchase.at).toISOString(),
       });
     }
     if (freeleech && hours) {
@@ -232,30 +252,6 @@ export function createApi({ config, store, log, watcher }: Deps) {
     if (pinned !== old.pinned) {
       changed("tracker", `${pinned ? "Pinned" : "Unpinned"} ${domain}`, { pinned: `${old.pinned} → ${pinned}` });
     }
-    res.json(next);
-  });
-
-  // Deletes one purchase from a tracker's history, which takes its upload off
-  // what was bought.
-  api.delete("/trackers/:domain/purchases/:id", (req, res) => {
-    const { domain } = req.params;
-    const old = config.trackers().find((tracker) => tracker.domain === domain);
-    const purchase = old?.purchases.find((p) => p.id === req.params.id);
-    if (!old || !purchase) {
-      log.warn("api", "No such purchase", { request: `${req.method} ${req.originalUrl}` });
-      res.status(404).json({ error: "No such purchase" });
-      return;
-    }
-    const next = { ...old, purchases: old.purchases.filter((p) => p !== purchase) };
-    // A purchase that took upload back can be deleted too, so what's left could
-    // be less than nothing.
-    if (boughtOf(next) < 0) throw new ValidationError("That takes back more upload than was bought");
-    saveTracker(next);
-    const what = `${purchase.bytes > 0 ? "purchase" : "take-back"} of ${formatGiB(Math.abs(purchase.bytes))}`;
-    changed("tracker", `Deleted a ${what} from ${domain}`, {
-      bought: `${formatGiB(boughtOf(old))} → ${formatGiB(boughtOf(next))}`,
-      at: purchase.at === null ? "no date" : new Date(purchase.at).toISOString(),
-    });
     res.json(next);
   });
 
