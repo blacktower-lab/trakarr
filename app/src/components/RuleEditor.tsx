@@ -16,7 +16,16 @@ import { cx } from "../lib/cx";
 import { BUFFER_THRESHOLDS, DEFAULT_THRESHOLDS, thresholdsOf, toGiB, type Rule } from "../lib/data";
 import { msg, rich } from "../lib/i18n";
 import { useFormat, useSettings, useT } from "../lib/prefs";
-import { CheckboxField, FIELD_VARIANT, FormSection, PointDecimals, RadioField, ROW, SelectField } from "./Form";
+import {
+  CheckboxField,
+  FIELD_VARIANT,
+  FormSection,
+  PointDecimals,
+  RadioField,
+  ROW,
+  SelectField,
+  useTouched,
+} from "./Form";
 import { UsageBar } from "./UsageBar";
 
 interface RuleEditorProps {
@@ -103,8 +112,10 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
   const [domainsText, setDomainsText] = useState(rule.domains.join(", "));
   const domains = [...new Set(splitList(domainsText).map(toDomain))];
   const badDomain = domains.find((d) => !isDomain(d));
-  // A bad domain shows once the field is left, not while it's being typed.
-  const [domainsLeft, setDomainsLeft] = useState(true);
+  // A bad domain shows once the field is left, not while it's being typed or
+  // before it's been touched.
+  const [domainsLeft, setDomainsLeft] = useState(false);
+  const touched = useTouched();
   // NaN while a ratio field is empty.
   const [hold, setHold] = useState(rule.holdBelow);
   const [release, setRelease] = useState(rule.releaseAbove);
@@ -134,6 +145,9 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
     release: byBuffer ? undefined : releaseError,
   };
   const valid = Object.values(errors).every((e) => e === undefined);
+  const nameShown = touched.shown("name", errors.name);
+  // Like the Domains field, the footer waits until it's been left.
+  const matchShown = domainsLeft ? errors.match : undefined;
 
   // What the server sees right now for this match: how many torrents it
   // reaches and their totals. It starts from the saved rule's numbers.
@@ -228,10 +242,16 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
       <Modal.Body>
         <div className="@container flex flex-col gap-6">
           <div className={ROW}>
-            <TextField variant={FIELD_VARIANT} value={name} onChange={setName} isInvalid={errors.name !== undefined}>
+            <TextField
+              variant={FIELD_VARIANT}
+              value={name}
+              onChange={setName}
+              onBlur={() => touched.touch("name")}
+              isInvalid={nameShown !== undefined}
+            >
               <Label>{t("Name")}</Label>
               <Input />
-              <FieldError>{errors.name}</FieldError>
+              <FieldError>{nameShown}</FieldError>
             </TextField>
             {/* Leaving the field swaps any pasted announce URL for its domain. */}
             <TextField
@@ -346,8 +366,8 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
       </Modal.Body>
 
       <Modal.Footer>
-        <p className={cx("mr-auto text-sm", errors.match ? "text-danger" : "text-muted")}>
-          {errors.match ??
+        <p className={cx("mr-auto text-sm", matchShown ? "text-danger" : "text-muted")}>
+          {matchShown ??
             (reach.torrents === 1 ? t("1 torrent matches") : t("{count} torrents match", { count: reach.torrents }))}
         </p>
         <Button slot="close" variant="secondary">

@@ -20,7 +20,7 @@ import { CircleAlert, CircleCheck, LockOpen, PanelLeft, Unplug, Wrench } from "l
 import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { useAuth } from "../components/AuthGate";
 import { Empty, Pending } from "../components/Empty";
-import { CheckboxField, FIELD_VARIANT, SecretInput, SelectField, SwitchField } from "../components/Form";
+import { CheckboxField, FIELD_VARIANT, SecretInput, SelectField, SwitchField, useTouched } from "../components/Form";
 import { Section } from "../components/Section";
 import { api, type Clock, type Language, type SavedSettings, type SettingsInput, type TestResult } from "../lib/api";
 import { cx } from "../lib/cx";
@@ -320,6 +320,7 @@ function QbittorrentForm({ saved: settings, focus, onSave }: FormProps) {
   const [address, setAddress] = useState(saved.address);
   const [apiKey, setApiKey] = useState("");
   const [poll, setPoll] = useState(String(settings.pollSeconds));
+  const touched = useTouched();
   const error = addressError(t, address);
   const draft = { address: address.trim(), apiKey };
 
@@ -331,7 +332,13 @@ function QbittorrentForm({ saved: settings, focus, onSave }: FormProps) {
       test={{ values: [draft.address, apiKey], run: () => api.testQbittorrent(draft) }}
       onSave={() => onSave({ qbittorrent: draft, pollSeconds: Number(poll) })}
     >
-      <AddressField value={address} onChange={setAddress} error={error} autoFocus={focus === "address"} />
+      <AddressField
+        value={address}
+        onChange={setAddress}
+        onBlur={() => touched.touch("address")}
+        error={touched.shown("address", error)}
+        autoFocus={focus === "address"}
+      />
       <SelectField
         label={t("Poll interval")}
         value={poll}
@@ -384,6 +391,7 @@ function ProwlarrForm({ saved: settings, focus, onSave }: FormProps) {
   const [address, setAddress] = useState(saved.address);
   const [apiKey, setApiKey] = useState("");
   const [switching, setSwitching] = useState(saved.switchProfiles);
+  const touched = useTouched();
   const error = addressError(t, address);
   const draft = { address: address.trim(), apiKey };
 
@@ -395,7 +403,13 @@ function ProwlarrForm({ saved: settings, focus, onSave }: FormProps) {
       test={{ values: [draft.address, apiKey], run: () => api.testProwlarr(draft) }}
       onSave={() => onSave({ prowlarr: { ...draft, switchProfiles: switching } })}
     >
-      <AddressField value={address} onChange={setAddress} error={error} autoFocus={focus === "address"} />
+      <AddressField
+        value={address}
+        onChange={setAddress}
+        onBlur={() => touched.touch("address")}
+        error={touched.shown("address", error)}
+        autoFocus={focus === "address"}
+      />
       <SecretInput
         label={t("API key")}
         placeholder={t(KEEP_SECRET)}
@@ -581,8 +595,10 @@ function NtfyForm({ saved: settings, focus, onSave }: FormProps) {
   const [address, setAddress] = useState(saved.address);
   const [topic, setTopic] = useState(saved.topic);
   const [token, setToken] = useState("");
+  const touched = useTouched();
   const addressProblem = addressError(t, address);
   const topicProblem = topicError(t, topic);
+  const topicShown = touched.shown("topic", topicProblem);
   const draft = { address: address.trim(), topic: topic.trim(), token };
 
   return (
@@ -596,14 +612,21 @@ function NtfyForm({ saved: settings, focus, onSave }: FormProps) {
       <AddressField
         value={address}
         onChange={setAddress}
-        error={addressProblem}
+        onBlur={() => touched.touch("address")}
+        error={touched.shown("address", addressProblem)}
         autoFocus={focus === "address"}
         placeholder="https://ntfy.sh"
       />
-      <TextField variant={FIELD_VARIANT} value={topic} onChange={setTopic} isInvalid={topicProblem !== undefined}>
+      <TextField
+        variant={FIELD_VARIANT}
+        value={topic}
+        onChange={setTopic}
+        onBlur={() => touched.touch("topic")}
+        isInvalid={topicShown !== undefined}
+      >
         <Label>{t("Topic")}</Label>
         <Input placeholder="trakarr" />
-        <FieldError>{topicProblem}</FieldError>
+        <FieldError>{topicShown}</FieldError>
       </TextField>
       <SecretInput
         label={t("Access token")}
@@ -629,18 +652,20 @@ function topicError(t: Translate, topic: string): string | undefined {
 interface AddressFieldProps {
   value: string;
   onChange: (value: string) => void;
+  onBlur: () => void;
   error?: string;
   autoFocus: boolean;
   placeholder?: string;
 }
 
-function AddressField({ value, onChange, error, autoFocus, placeholder = "host:port" }: AddressFieldProps) {
+function AddressField({ value, onChange, onBlur, error, autoFocus, placeholder = "host:port" }: AddressFieldProps) {
   const t = useT();
   return (
     <TextField
       variant={FIELD_VARIANT}
       value={value}
       onChange={onChange}
+      onBlur={onBlur}
       isInvalid={error !== undefined}
       autoFocus={autoFocus}
     >

@@ -24,6 +24,17 @@ export const FIELD_VARIANT = "secondary";
 // screen's, because dialogs are narrower than most screens.
 export const ROW = "grid grid-cols-1 items-start gap-x-3 gap-y-4 @md:grid-cols-2";
 
+// Which of a form's fields have been left. A field's error shows only after
+// that, so a form that opens empty doesn't open red. The form remounts on every
+// open, so it starts over each time.
+export function useTouched() {
+  const [touched, setTouched] = useState<ReadonlySet<string>>(new Set());
+  return {
+    touch: (field: string) => setTouched((current) => (current.has(field) ? current : new Set(current).add(field))),
+    shown: (field: string, error: string | undefined) => (touched.has(field) ? error : undefined),
+  };
+}
+
 // A titled group of a form's fields. A legend isn't a flex item of its fieldset,
 // so the fieldset's gap doesn't reach it and its content would touch it: the
 // content has its own space above instead.
