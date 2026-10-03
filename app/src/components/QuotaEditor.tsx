@@ -18,22 +18,61 @@ interface QuotaEditorProps {
   onOpenChange: (open: boolean) => void;
   // Resolves once the save is over. The caller closes the dialog if it worked.
   onSave: (change: QuotaChange) => Promise<void>;
-  // Resolves with whether the purchase was saved. Either way the quota dialog stays open.
-  onAddPurchase: (bytes: number) => Promise<boolean>;
-  // Resolves once the purchase's deletion is over.
-  onDeletePurchase: (id: string) => Promise<void>;
+}
+
+// What the dialog added and deleted, which only Save sends. Closing it drops
+// them, and every time it opens it starts with none.
+interface Staged {
+  session: number;
+  // The purchases added, each with the time it was.
+  added: { key: number; bytes: number; at: number }[];
+  // The ids of the saved purchases deleted.
+  deleted: string[];
+  // The key of the next purchase added.
+  next: number;
+}
+
+const unstaged = (session: number): Staged => ({ session, added: [], deleted: [], next: 0 });
+
+// A purchase as the dialog lists it: a saved one that isn't deleted, or one
+// added that Save hasn't sent yet.
+interface Listed extends Purchase {
+  added: boolean;
+}
+
+function listed(tracker: TrackerRow, staged: Staged): Listed[] {
+  return [
+    ...tracker.purchases.filter((p) => !staged.deleted.includes(p.id)).map((p) => ({ ...p, added: false })),
+    ...staged.added.map((p) => ({ id: String(p.key), bytes: p.bytes, at: p.at, added: true })),
+  ];
 }
 
 // What a tracker's site counts that qBittorrent doesn't: upload bought with
 // bonus points, and a freeleech.
-export function QuotaEditor({ open, tracker, session, onOpenChange, onSave, onAddPurchase, onDeletePurchase }: QuotaEditorProps) {
+export function QuotaEditor({ open, tracker, session, onOpenChange, onSave }: QuotaEditorProps) {
+  const [staged, setStaged] = useState(() => unstaged(session));
+  if (staged.session !== session) setStaged(unstaged(session));
+
   // Whether the dialog to add a purchase is open. Its key changes every time it
   // opens, so it starts empty.
   const [adding, setAdding] = useState({ open: false, key: 0 });
 
-  const add = async (bytes: number) => {
-    if (await onAddPurchase(bytes)) setAdding((current) => ({ ...current, open: false }));
+  const add = (bytes: number) => {
+    const at = Date.now();
+    setStaged((current) => ({
+      ...current,
+      added: [...current.added, { key: current.next, bytes, at }],
+      next: current.next + 1,
+    }));
+    setAdding((current) => ({ ...current, open: false }));
   };
+
+  const remove = (purchase: Listed) =>
+    setStaged((current) =>
+      purchase.added
+        ? { ...current, added: current.added.filter((p) => String(p.key) !== purchase.id) }
+        : { ...current, deleted: [...current.deleted, purchase.id] },
+    );
 
   return (
     <>
@@ -44,9 +83,10 @@ export function QuotaEditor({ open, tracker, session, onOpenChange, onSave, onAd
               <QuotaForm
                 key={session}
                 tracker={tracker}
+                staged={staged}
                 onSave={onSave}
                 onAddPurchase={() => setAdding((current) => ({ open: true, key: current.key + 1 }))}
-                onDeletePurchase={onDeletePurchase}
+                onDeletePurchase={remove}
               />
             )}
           </Modal.Dialog>
@@ -76,12 +116,13 @@ const HOURS_FORMAT = { style: "unit", unit: "hour", unitDisplay: "long" } as con
 
 interface QuotaFormProps {
   tracker: TrackerRow;
+  staged: Staged;
   onSave: (change: QuotaChange) => Promise<void>;
   onAddPurchase: () => void;
-  onDeletePurchase: (id: string) => Promise<void>;
+  onDeletePurchase: (purchase: Listed) => void;
 }
 
-function QuotaForm({ tracker, onSave, onAddPurchase, onDeletePurchase }: QuotaFormProps) {
+function QuotaForm({ tracker, staged, onSave, onAddPurchase, onDeletePurchase }: QuotaFormProps) {
   const t = useT();
   const format = useFormat();
   const left = freeleechLeft(tracker.freeleech);
@@ -89,7 +130,15 @@ function QuotaForm({ tracker, onSave, onAddPurchase, onDeletePurchase }: QuotaFo
   const [freeleech, setFreeleech] = useState(running);
   const [hours, setHours] = useState(DEFAULT_FREELEECH_HOURS);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+
+  const purchases = listed(tracker, staged);
+  // What's bought and the ratio once Save sends the purchases. The upload the
+  // tracker shows has its bought part in it, so only the difference changes it.
+  const boughtGiB = Math.max(0, toGiB(purchases.reduce((sum, p) => sum + p.bytes, 0)));
+  const ratio = ratioOf({
+    uploadedGiB: tracker.uploadedGiB + boughtGiB - tracker.boughtGiB,
+    downloadedGiB: tracker.downloadedGiB,
+  });
 
   // Hours only matter for a freeleech that starts on save.
   const starts = freeleech && !running;
@@ -100,9 +149,13 @@ function QuotaForm({ tracker, onSave, onAddPurchase, onDeletePurchase }: QuotaFo
         : undefined,
   };
   const valid = Object.values(errors).every((e) => e === undefined);
+  // One deleted from another tab is gone already, and Save doesn't send it.
+  const deleted = staged.deleted.filter((id) => tracker.purchases.some((p) => p.id === id));
   const change: QuotaChange = {
     ...(starts && { freeleechHours: hours }),
     ...(!freeleech && running && { freeleechHours: null }),
+    ...(staged.added.length > 0 && { addPurchases: staged.added.map((p) => p.bytes) }),
+    ...(deleted.length > 0 && { deletePurchases: deleted }),
   };
   const changed = Object.keys(change).length > 0;
 
@@ -112,15 +165,6 @@ function QuotaForm({ tracker, onSave, onAddPurchase, onDeletePurchase }: QuotaFo
       await onSave(change);
     } finally {
       setSaving(false);
-    }
-  };
-
-  const remove = async (id: string) => {
-    setDeleting(true);
-    try {
-      await onDeletePurchase(id);
-    } finally {
-      setDeleting(false);
     }
   };
 
@@ -141,15 +185,13 @@ function QuotaForm({ tracker, onSave, onAddPurchase, onDeletePurchase }: QuotaFo
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-muted">
-                {rich(t, "Total bought {size}", { size: <Value>{format.gib(tracker.boughtGiB)}</Value> })}
+                {rich(t, "Total bought {size}", { size: <Value>{format.gib(boughtGiB)}</Value> })}
               </p>
               <Button isIconOnly size="sm" variant="ghost" aria-label={t("Add purchase")} onPress={onAddPurchase}>
                 <Plus aria-hidden />
               </Button>
             </div>
-            {tracker.purchases.length > 0 && (
-              <PurchaseList purchases={tracker.purchases} isDisabled={deleting} onDelete={remove} />
-            )}
+            {purchases.length > 0 && <PurchaseList purchases={purchases} onDelete={onDeletePurchase} />}
           </div>
 
           <Separator />
@@ -194,7 +236,7 @@ function QuotaForm({ tracker, onSave, onAddPurchase, onDeletePurchase }: QuotaFo
       <Modal.Footer>
         {/* The footer's buttons are at its end, so the margin takes the ratio to its start. */}
         <p className="mr-auto text-sm text-muted">
-          {rich(t, "Ratio {ratio}", { ratio: <Value>{format.ratio(ratioOf(tracker))}</Value> })}
+          {rich(t, "Ratio {ratio}", { ratio: <Value>{format.ratio(ratio)}</Value> })}
         </p>
         <Button slot="close" variant="secondary">
           {t("Cancel")}
@@ -208,30 +250,22 @@ function QuotaForm({ tracker, onSave, onAddPurchase, onDeletePurchase }: QuotaFo
 }
 
 interface PurchaseListProps {
-  purchases: Purchase[];
-  isDisabled: boolean;
-  onDelete: (id: string) => void;
+  purchases: Listed[];
+  onDelete: (purchase: Listed) => void;
 }
 
 // Each purchase with its date, the newest first, and a button to delete it.
-function PurchaseList({ purchases, isDisabled, onDelete }: PurchaseListProps) {
+function PurchaseList({ purchases, onDelete }: PurchaseListProps) {
   const t = useT();
   const format = useFormat();
 
   return (
     <ul className="flex flex-col gap-2">
       {[...purchases].reverse().map((purchase) => (
-        <li key={purchase.id} className="flex items-center gap-3">
+        <li key={`${purchase.added}-${purchase.id}`} className="flex items-center gap-3">
           <span className="flex-1 text-sm text-muted">{purchase.at === null ? "—" : format.date(purchase.at)}</span>
           <Value>{format.gib(toGiB(purchase.bytes))}</Value>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="ghost"
-            aria-label={t("Delete purchase")}
-            isDisabled={isDisabled}
-            onPress={() => onDelete(purchase.id)}
-          >
+          <Button isIconOnly size="sm" variant="ghost" aria-label={t("Delete purchase")} onPress={() => onDelete(purchase)}>
             <Trash2 aria-hidden />
           </Button>
         </li>
@@ -246,23 +280,13 @@ const AMOUNT = /^(\d+[.,]?\d*|[.,]\d+)$/;
 // How much upload was bought, to add as a purchase of today. It's a text field,
 // not a number field, which only takes what's typed once it loses focus, and
 // that would swallow the first click on Add.
-function PurchaseForm({ onAdd }: { onAdd: (bytes: number) => Promise<void> }) {
+function PurchaseForm({ onAdd }: { onAdd: (bytes: number) => void }) {
   const t = useT();
   const [text, setText] = useState("");
-  const [adding, setAdding] = useState(false);
 
   const typed = text.trim();
   const bytes = AMOUNT.test(typed) ? toBytes(Number(typed.replace(",", "."))) : 0;
   const invalid = typed !== "" && bytes <= 0;
-
-  const add = async () => {
-    setAdding(true);
-    try {
-      await onAdd(bytes);
-    } finally {
-      setAdding(false);
-    }
-  };
 
   return (
     <>
@@ -283,7 +307,7 @@ function PurchaseForm({ onAdd }: { onAdd: (bytes: number) => Promise<void> }) {
         <Button slot="close" variant="secondary">
           {t("Cancel")}
         </Button>
-        <Button isDisabled={bytes <= 0 || adding} onPress={add}>
+        <Button isDisabled={bytes <= 0} onPress={() => onAdd(bytes)}>
           {t("Add")}
         </Button>
       </Modal.Footer>

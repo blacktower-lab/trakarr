@@ -53,11 +53,13 @@ export interface TrackerQuota {
   pinned: boolean;
 }
 
-// What PATCH /trackers/:domain takes: bytes of bought upload to add, negative
-// to take back a mistake, a freeleech to start for so many hours, or null to
-// end it, and whether the tracker is pinned to the top of the dashboard.
+// What PATCH /trackers/:domain takes: the bytes of each purchase of bought
+// upload to add, and the ids of the purchases to delete, a freeleech to start
+// for so many hours, or null to end it, and whether the tracker is pinned to
+// the top of the dashboard.
 export interface QuotaChange {
-  addBought?: number;
+  addPurchases?: number[];
+  deletePurchases?: string[];
   freeleechHours?: number | null;
   pinned?: boolean;
 }
@@ -240,8 +242,6 @@ export const api = {
   preview: (match: Match) => request<Preview>("POST", "rules/preview", match),
   updateTracker: (domain: string, change: QuotaChange) =>
     request<TrackerQuota>("PATCH", `trackers/${encodeURIComponent(domain)}`, change),
-  deletePurchase: (domain: string, id: string) =>
-    request<TrackerQuota>("DELETE", `trackers/${encodeURIComponent(domain)}/purchases/${encodeURIComponent(id)}`),
   events: (limit: number) => request<TrakarrEvent[]>("GET", `events?limit=${limit}`),
   // Lines at `level` or above, oldest first. `after` tails what is newer than an id.
   logs: ({ level, limit, after }: { level: LogLevel; limit: number; after?: number }) => {
