@@ -266,16 +266,26 @@ test("bought upload is added a purchase at a time, and a freeleech starts and en
       .logs({ levels: ["info"], query: "harrier.example", before: Infinity, limit: 10 })
       .map((l) => [l.message, l.fields]);
 
-  assert.deepEqual((await call("PATCH", path, { addBought: 30 * GIB })).body, {
+  const bought = (body: { purchases: { bytes: number }[] }) => body.purchases.reduce((sum, p) => sum + p.bytes, 0);
+
+  // Each purchase is kept with its own id and the time it was made.
+  const opened = Date.now();
+  const first = (await call("PATCH", path, { addBought: 30 * GIB })).body;
+  const [purchase] = first.purchases;
+  assert.equal(typeof purchase.id, "string");
+  assert.equal(purchase.at >= opened, true);
+  assert.deepEqual(first, {
     domain: "harrier.example",
-    bought: 30 * GIB,
+    purchases: [{ id: purchase.id, bytes: 30 * GIB, at: purchase.at }],
     freeleech: null,
     pinned: false,
   });
-  assert.equal((await call("PATCH", path, { addBought: 30 * GIB })).body.bought, 60 * GIB);
+  const second = (await call("PATCH", path, { addBought: 30 * GIB })).body;
+  assert.deepEqual([second.purchases.length, bought(second)], [2, 60 * GIB]);
   const tooMuch = await call("PATCH", path, { addBought: -61 * GIB });
   assert.deepEqual([tooMuch.status, tooMuch.body.error], [400, "That takes back more upload than was bought"]);
-  assert.equal((await call("PATCH", path, { addBought: -10 * GIB })).body.bought, 50 * GIB);
+  const taken = (await call("PATCH", path, { addBought: -10 * GIB })).body;
+  assert.deepEqual([taken.purchases.length, bought(taken)], [3, 50 * GIB]);
 
   const started = Date.now();
   const { freeleech } = (await call("PATCH", path, { freeleechHours: 24 })).body;
@@ -303,6 +313,52 @@ test("bought upload is added a purchase at a time, and a freeleech starts and en
   );
 });
 
+test("a purchase is deleted from a tracker's history, which takes its upload off what was bought, all logged", async () => {
+  const GIB = 1024 ** 3;
+  const domain = "heron.example";
+  const path = `/trackers/${domain}`;
+  const kept = () =>
+    (JSON.parse(readFileSync(join(dir, "trackers.json"), "utf8")) as { domain: string; purchases: unknown[] }[]).filter((t) => t.domain === domain);
+  const lines = () =>
+    store.logs({ levels: ["info"], query: domain, before: Infinity, limit: 10 }).map((l) => [l.message, l.fields]);
+  const bought = (body: { purchases: { bytes: number }[] }) => body.purchases.reduce((sum, p) => sum + p.bytes, 0);
+
+  await call("PATCH", path, { addBought: 30 * GIB });
+  await call("PATCH", path, { addBought: 10 * GIB });
+  const [a, b, c] = (await call("PATCH", path, { addBought: -35 * GIB })).body.purchases;
+
+  // Taking the 30 off would leave less than nothing with the 35 taken back.
+  const tooMuch = await call("DELETE", `${path}/purchases/${a.id}`);
+  assert.deepEqual([tooMuch.status, tooMuch.body.error], [400, "That takes back more upload than was bought"]);
+  assert.equal(kept()[0].purchases.length, 3);
+
+  // A take-back is deleted like a purchase, and the upload comes back.
+  const putBack = await call("DELETE", `${path}/purchases/${c.id}`);
+  assert.equal(putBack.status, 200);
+  assert.deepEqual(putBack.body.purchases, [a, b]);
+  assert.equal(bought(putBack.body), 40 * GIB);
+
+  const deleted = await call("DELETE", `${path}/purchases/${a.id}`);
+  assert.deepEqual(deleted.body, { domain, purchases: [b], freeleech: null, pinned: false });
+  assert.deepEqual(kept()[0].purchases, [b]);
+
+  assert.deepEqual((await call("DELETE", `${path}/purchases/nope`)).status, 404);
+  assert.deepEqual((await call("DELETE", `/trackers/nope.example/purchases/${b.id}`)).status, 404);
+
+  // Unpinned and with no purchases left, there's nothing to keep.
+  assert.equal((await call("DELETE", `${path}/purchases/${b.id}`)).status, 200);
+  assert.deepEqual(kept(), []);
+
+  assert.deepEqual(lines(), [
+    [`Added 30 GiB of bought upload to ${domain}`, { bought: "0 GiB → 30 GiB" }],
+    [`Added 10 GiB of bought upload to ${domain}`, { bought: "30 GiB → 40 GiB" }],
+    [`Took back 35 GiB of bought upload from ${domain}`, { bought: "40 GiB → 5 GiB" }],
+    [`Deleted a take-back of 35 GiB from ${domain}`, { bought: "5 GiB → 40 GiB", at: new Date(c.at).toISOString() }],
+    [`Deleted a purchase of 30 GiB from ${domain}`, { bought: "40 GiB → 10 GiB", at: new Date(a.at).toISOString() }],
+    [`Deleted a purchase of 10 GiB from ${domain}`, { bought: "10 GiB → 0 GiB", at: new Date(b.at).toISOString() }],
+  ]);
+});
+
 test("a tracker is pinned and unpinned, kept in trackers.json only while it has something to keep, and logged when it changes", async () => {
   const GIB = 1024 ** 3;
   const kept = (domain: string) =>
@@ -315,19 +371,22 @@ test("a tracker is pinned and unpinned, kept in trackers.json only while it has 
 
   assert.deepEqual((await call("PATCH", path, { pinned: true })).body, {
     domain: "kite.example",
-    bought: 0,
+    purchases: [],
     freeleech: null,
     pinned: true,
   });
-  assert.deepEqual(kept("kite.example"), [{ domain: "kite.example", bought: 0, freeleech: null, pinned: true }]);
+  assert.deepEqual(kept("kite.example"), [{ domain: "kite.example", purchases: [], freeleech: null, pinned: true }]);
 
   // Pinning what's pinned changes nothing, and neither does buying upload.
   assert.equal((await call("PATCH", path, { pinned: true })).body.pinned, true);
-  assert.equal((await call("PATCH", path, { addBought: GIB })).body.pinned, true);
+  const bought = await call("PATCH", path, { addBought: GIB });
+  assert.equal(bought.body.pinned, true);
 
   // Unpinned with upload bought, it stays for the upload.
   assert.equal((await call("PATCH", path, { pinned: false })).body.pinned, false);
-  assert.deepEqual(kept("kite.example"), [{ domain: "kite.example", bought: GIB, freeleech: null, pinned: false }]);
+  assert.deepEqual(kept("kite.example"), [
+    { domain: "kite.example", purchases: bought.body.purchases, freeleech: null, pinned: false },
+  ]);
 
   // Unpinned with nothing else, it goes.
   const swift = "/trackers/swift.example";

@@ -1,4 +1,4 @@
-import type { HoldAction, Rule, TrackerQuota } from "./config.ts";
+import { boughtOf, type HoldAction, type Rule, type TrackerQuota } from "./config.ts";
 
 // The rule logic, with no I/O: which torrents a rule reaches, its ratio, its
 // state, and what to hold or release.
@@ -68,7 +68,7 @@ export function totals(
     downloaded += entry.downloaded + entry.pastDownloaded - entry.freeDownloaded;
   }
   for (const quota of quotas) {
-    if (matches(rule, [quota.domain])) uploaded += quota.bought;
+    if (matches(rule, [quota.domain])) uploaded += boughtOf(quota);
   }
   return { uploaded, downloaded };
 }

@@ -73,8 +73,8 @@ test("bought upload counts on its domain, and what was downloaded on a freeleech
     entry({ hash: "b", domains: ["kestrel.example"], uploaded: 5, downloaded: 5 }),
   ];
   const quotas = [
-    { domain: "tracker.kestrel.example", bought: 40, freeleech: null, pinned: false },
-    { domain: "meridian.example", bought: 1000, freeleech: null, pinned: false },
+    { domain: "tracker.kestrel.example", purchases: [{ id: "a", bytes: 40, at: 0 }], freeleech: null, pinned: false },
+    { domain: "meridian.example", purchases: [{ id: "b", bytes: 1000, at: 0 }], freeleech: null, pinned: false },
   ];
   assert.deepEqual(totals(rule, ledger, quotas), { uploaded: 55, downloaded: 25 });
 });

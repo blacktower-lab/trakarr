@@ -1,4 +1,4 @@
-import type { Config, Rule } from "./config.ts";
+import { boughtOf, type Config, type Rule } from "./config.ts";
 import { ConnectionError, type TestResult } from "./connection.ts";
 import {
   announcesTo,
@@ -519,15 +519,16 @@ export function createWatcher({ config, store, log, notify }: Deps) {
         ...preview(rule),
       })),
       // Every tracker the torrents in qBittorrent announce to, with what it
-      // reaches, the first rule whose domains take it in, its quota and whether
-      // it's pinned.
+      // reaches, the first rule whose domains take it in, its quota with the
+      // purchases it adds up from, and whether it's pinned.
       trackers: [...domains].sort().map((domain) => {
         const quota = quotas.find((q) => q.domain === domain);
         return {
           domain,
           ruleId: rules.find((rule) => matches(rule, [domain]))?.id ?? null,
           ...preview({ domains: [domain] }),
-          bought: quota?.bought ?? 0,
+          bought: quota ? boughtOf(quota) : 0,
+          purchases: quota?.purchases ?? [],
           freeleech: quota?.freeleech ?? null,
           pinned: quota?.pinned ?? false,
         };

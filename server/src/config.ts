@@ -33,10 +33,24 @@ export interface Rule {
 // whether the dashboard pins the tracker to the top of its list.
 export interface TrackerQuota {
   domain: string;
-  // Bytes of upload bought, on top of what its torrents uploaded.
-  bought: number;
+  // Each purchase of upload, on top of what its torrents uploaded.
+  purchases: Purchase[];
   freeleech: Freeleech | null;
   pinned: boolean;
+}
+
+// Bytes of upload bought at one time. A purchase that takes upload back, to
+// fix a mistake, has negative bytes. The one a total bought before purchases
+// were kept becomes has no date.
+export interface Purchase {
+  id: string;
+  bytes: number;
+  at: number | null;
+}
+
+// What was bought on a tracker, in bytes.
+export function boughtOf(quota: Pick<TrackerQuota, "purchases">): number {
+  return quota.purchases.reduce((sum, purchase) => sum + purchase.bytes, 0);
 }
 
 export interface Freeleech {
@@ -143,9 +157,9 @@ export function openConfig(dir = CONFIG_DIR) {
       writeJson(rulesPath, next);
       rules = next;
     },
-    // A tracker with nothing bought, no freeleech and no pin has nothing to keep.
+    // A tracker with no purchases, no freeleech and no pin has nothing to keep.
     saveTrackers(next: TrackerQuota[]) {
-      const kept = next.filter((tracker) => tracker.bought > 0 || tracker.freeleech !== null || tracker.pinned);
+      const kept = next.filter((tracker) => tracker.purchases.length > 0 || tracker.freeleech !== null || tracker.pinned);
       writeJson(trackersPath, kept);
       trackers = kept;
     },
@@ -269,12 +283,32 @@ export function parsePasswordChange(input: unknown): { current: string; next: st
 
 function parseTracker(input: unknown): TrackerQuota {
   const t = object(input, "tracker");
-  return {
+  const tracker = {
     domain: domainOf(t.domain),
-    bought: atLeastZero(t.bought ?? 0, "bought"),
+    purchases: parsePurchases(t),
     freeleech: t.freeleech == null ? null : parseFreeleech(t.freeleech),
     pinned: t.pinned === undefined ? false : boolean(t.pinned, "pinned"),
   };
+  if (boughtOf(tracker) < 0) throw new ValidationError("purchases can't take back more upload than was bought");
+  return tracker;
+}
+
+// Before purchases were kept, a tracker had a total bought. It becomes one
+// purchase with no date, whose id is fixed so it's the same on every load.
+function parsePurchases(t: Record<string, unknown>): Purchase[] {
+  if (t.purchases === undefined) {
+    const bought = atLeastZero(t.bought ?? 0, "bought");
+    return bought > 0 ? [{ id: "earlier", bytes: bought, at: null }] : [];
+  }
+  if (!Array.isArray(t.purchases)) throw new ValidationError("purchases must be a list");
+  return t.purchases.map((input) => {
+    const p = object(input, "purchase");
+    const bytes = number(p.bytes, "purchase.bytes");
+    if (!Number.isInteger(bytes) || bytes === 0) throw new ValidationError("purchase.bytes must be whole bytes, not 0");
+    const purchaseId = text(p.id, "purchase.id");
+    if (purchaseId === "") throw new ValidationError("purchase.id is required");
+    return { id: purchaseId, bytes, at: p.at == null ? null : atLeastZero(p.at, "purchase.at") };
+  });
 }
 
 function parseFreeleech(input: unknown): Freeleech {
