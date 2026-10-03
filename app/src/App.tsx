@@ -172,6 +172,10 @@ function Shell() {
   // The tracker whose quota is being changed.
   const [quota, setQuota] = useState<{ tracker?: TrackerRow; session: number }>({ session: 0 });
   const [quotaOpen, setQuotaOpen] = useState(false);
+  // Its row from the last poll, so the dialog follows a purchase deleted in it.
+  // The one it opened with stays while the dialog animates closed.
+  const quotaTracker =
+    trackerRows(data?.rules ?? [], data?.status.trackers ?? []).find((row) => row.key === quota.tracker?.key) ?? quota.tracker;
 
   const openQuota = (tracker: TrackerRow) => {
     setQuota((current) => ({ tracker, session: current.session + 1 }));
@@ -191,6 +195,34 @@ function Shell() {
     setQuotaOpen(false);
     live.refresh();
     toast.success(t("{domain} quota saved", { domain }));
+  };
+
+  // Unlike a save, a purchase added or deleted leaves the dialog open, to show the list.
+  const addPurchase = async (bytes: number): Promise<boolean> => {
+    const domain = quota.tracker?.domain;
+    if (!domain) return false;
+    try {
+      await api.updateTracker(domain, { addBought: bytes });
+    } catch (error) {
+      toast.danger(t("Couldn't add the purchase"), { description: (error as Error).message });
+      return false;
+    }
+    live.refresh();
+    toast.success(t("Purchase added"));
+    return true;
+  };
+
+  const deletePurchase = async (id: string) => {
+    const domain = quota.tracker?.domain;
+    if (!domain) return;
+    try {
+      await api.deletePurchase(domain, id);
+    } catch (error) {
+      toast.danger(t("Couldn't delete the purchase"), { description: (error as Error).message });
+      return;
+    }
+    live.refresh();
+    toast(t("Purchase deleted"));
   };
 
   const togglePin = async (tracker: TrackerRow) => {
@@ -272,10 +304,12 @@ function Shell() {
 
       <QuotaEditor
         open={quotaOpen}
-        tracker={quota.tracker}
+        tracker={quotaTracker}
         session={quota.session}
         onOpenChange={setQuotaOpen}
         onSave={saveQuota}
+        onAddPurchase={addPurchase}
+        onDeletePurchase={deletePurchase}
       />
     </div>
   );

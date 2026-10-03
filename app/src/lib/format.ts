@@ -106,6 +106,11 @@ export function createFormat({ language, timeZone, clock }: Prefs, t: Translate)
       return new Date(at).toLocaleDateString(locale, { month: "short", day: "numeric", timeZone: zone });
     },
 
+    // The calendar day in the zone, with its year, like "Oct 3, 2026".
+    date(at: number): string {
+      return new Date(at).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric", timeZone: zone });
+    },
+
     time,
   };
 }

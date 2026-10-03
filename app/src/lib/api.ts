@@ -37,10 +37,18 @@ export interface Freeleech {
   until: number;
 }
 
+// Bytes of upload bought at one time, negative to take back a mistake. The one
+// a total bought before purchases were kept becomes has no date.
+export interface Purchase {
+  id: string;
+  bytes: number;
+  at: number | null;
+}
+
 export interface TrackerQuota {
   domain: string;
-  // Bytes of upload bought with bonus points.
-  bought: number;
+  // Each purchase of upload bought with bonus points.
+  purchases: Purchase[];
   freeleech: Freeleech | null;
   pinned: boolean;
 }
@@ -133,6 +141,8 @@ export interface TrackerStatus extends Preview {
   // The first rule whose domains take it in.
   ruleId: string | null;
   bought: number;
+  // What bought adds up from, oldest first.
+  purchases: Purchase[];
   freeleech: Freeleech | null;
   pinned: boolean;
 }
@@ -230,6 +240,8 @@ export const api = {
   preview: (match: Match) => request<Preview>("POST", "rules/preview", match),
   updateTracker: (domain: string, change: QuotaChange) =>
     request<TrackerQuota>("PATCH", `trackers/${encodeURIComponent(domain)}`, change),
+  deletePurchase: (domain: string, id: string) =>
+    request<TrackerQuota>("DELETE", `trackers/${encodeURIComponent(domain)}/purchases/${encodeURIComponent(id)}`),
   events: (limit: number) => request<TrakarrEvent[]>("GET", `events?limit=${limit}`),
   // Lines at `level` or above, oldest first. `after` tails what is newer than an id.
   logs: ({ level, limit, after }: { level: LogLevel; limit: number; after?: number }) => {

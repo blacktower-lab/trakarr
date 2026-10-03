@@ -6,7 +6,7 @@
 //   to release = releaseAbove * downloaded - uploaded
 //   limit      = uploaded / holdBelow while OK, uploaded / releaseAbove while held
 
-import type { Freeleech, RuleConfig, RuleState, RuleStatus, TrackerStatus } from "./api";
+import type { Freeleech, Purchase, RuleConfig, RuleState, RuleStatus, TrackerStatus } from "./api";
 
 // A rule's settings from /rules, with its live numbers from /status.
 export interface Rule extends RuleConfig {
@@ -68,6 +68,8 @@ export interface TrackerRow {
   uploadedGiB: number;
   downloadedGiB: number;
   boughtGiB: number;
+  // What the bought upload adds up from, oldest first.
+  purchases: Purchase[];
   freeleech: Freeleech | null;
   // Pinned trackers go to the top of the list. A rule's row has no domain to pin.
   pinned: boolean;
@@ -85,6 +87,7 @@ export function trackerRows(rules: Rule[], trackers: TrackerStatus[]): TrackerRo
     uploadedGiB: toGiB(tracker.uploaded),
     downloadedGiB: toGiB(tracker.downloaded),
     boughtGiB: toGiB(tracker.bought),
+    purchases: tracker.purchases,
     freeleech: tracker.freeleech,
     pinned: tracker.pinned,
     rule,
@@ -103,6 +106,7 @@ export function trackerRows(rules: Rule[], trackers: TrackerStatus[]): TrackerRo
         uploadedGiB,
         downloadedGiB,
         boughtGiB: 0,
+        purchases: [],
         freeleech: null,
         pinned: false,
         rule,
