@@ -2,7 +2,6 @@ import {
   Button,
   Description,
   FieldError,
-  Fieldset,
   Input,
   Label,
   Modal,
@@ -17,7 +16,7 @@ import { cx } from "../lib/cx";
 import { BUFFER_THRESHOLDS, DEFAULT_THRESHOLDS, thresholdsOf, toGiB, type Rule } from "../lib/data";
 import { msg, rich } from "../lib/i18n";
 import { useFormat, useSettings, useT } from "../lib/prefs";
-import { FIELD_VARIANT, PointDecimals, RadioField, ROW, SelectField, SwitchField } from "./Form";
+import { CheckboxField, FIELD_VARIANT, FormSection, PointDecimals, RadioField, ROW, SelectField } from "./Form";
 import { UsageBar } from "./UsageBar";
 
 interface RuleEditorProps {
@@ -272,7 +271,7 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
             />
           </div>
 
-          <SwitchField
+          <CheckboxField
             label={t("Download based on buffer")}
             description={t("Downloads only while uploaded covers them, ignoring the ratios")}
             isSelected={byBuffer}
@@ -282,17 +281,18 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
           <div className="flex flex-col gap-2">
             <UsageBar rule={shown} />
             <p className="text-sm text-muted">
-              {rich(t, "Below {hold} downloads pause, above {release} they continue.", {
-                hold: <Value>{format.number(holdAt, 2)}</Value>,
-                release: <Value>{format.number(releaseAt, 2)}</Value>,
-              })}
+              {byBuffer
+                ? t("Download will continue until buffer is consumed.")
+                : rich(t, "Below {hold} downloads pause, above {release} they continue.", {
+                    hold: <Value>{format.number(holdAt, 2)}</Value>,
+                    release: <Value>{format.number(releaseAt, 2)}</Value>,
+                  })}
             </p>
           </div>
 
           <Separator />
 
-          <Fieldset>
-            <Fieldset.Legend>{t("When held")}</Fieldset.Legend>
+          <FormSection title={t("When held")}>
             <RadioField
               label={t("When held")}
               value={action}
@@ -303,14 +303,13 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
                 description: t(ACTIONS[id].description),
               }))}
             />
-          </Fieldset>
+          </FormSection>
 
           {switching && (
             <>
               <Separator />
 
-              <Fieldset>
-                <Fieldset.Legend>Prowlarr</Fieldset.Legend>
+              <FormSection title="Prowlarr">
                 <div className="flex flex-col gap-4">
                   {prowlarr.error && <Description>{prowlarr.error.message}</Description>}
                   <SelectField
@@ -340,7 +339,7 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
                     </div>
                   )}
                 </div>
-              </Fieldset>
+              </FormSection>
             </>
           )}
         </div>

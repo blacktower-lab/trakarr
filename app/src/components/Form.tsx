@@ -2,6 +2,7 @@ import {
   Button,
   Description,
   FieldError,
+  Fieldset,
   I18nProvider,
   InputGroup,
   Label,
@@ -22,6 +23,18 @@ export const FIELD_VARIANT = "secondary";
 // Two equal columns shared by form rows. They follow the form's width, not the
 // screen's, because dialogs are narrower than most screens.
 export const ROW = "grid grid-cols-1 items-start gap-x-3 gap-y-4 @md:grid-cols-2";
+
+// A titled group of a form's fields. A legend isn't a flex item of its fieldset,
+// so the fieldset's gap doesn't reach it and its content would touch it: the
+// content has its own space above instead.
+export function FormSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <Fieldset>
+      <Fieldset.Legend>{title}</Fieldset.Legend>
+      <div className="pt-3">{children}</div>
+    </Fieldset>
+  );
+}
 
 // Wraps a number field that takes decimals, so it's typed and shown with a point
 // in every language. In Spanish a point separates thousands, which would read a

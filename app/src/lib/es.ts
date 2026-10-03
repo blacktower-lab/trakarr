@@ -61,6 +61,7 @@ export const ES: Record<string, string> = {
   "Domains": "Dominios",
   "Domains or announce URLs, comma-separated": "Dominios o URLs de announce, separados por comas",
   "Download based on buffer": "Descargar según el buffer",
+  "Download will continue until buffer is consumed.": "La descarga continuará hasta que se consuma el buffer.",
   "Download {bytes} more and it holds": "Descarga {bytes} más y se retiene",
   "Downloaded": "Descargado",
   "Downloaded against what its upload allows": "Descargado frente a lo que permite su subida",
