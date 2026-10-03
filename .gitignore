@@ -3,3 +3,7 @@
 /.package/
 /trakarr-*.tar.gz
 /node_modules/
+/.claude/
+/.agents/
+/.todo/
+/skills-lock.json
