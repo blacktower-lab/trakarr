@@ -27,7 +27,8 @@
   --field-border: transparent;
   --field-foreground: oklch(21.03% 0.0000 0.00);
   --field-placeholder: oklch(55.17% 0.0000 0.00);
-  --focus: oklch(0 0 0);
+  /* Focus rings are off on purpose: every HeroUI ring is drawn with this color. */
+  --focus: transparent;
   --foreground: oklch(21.03% 0.0000 0.00);
   --muted: oklch(55.17% 0.0000 0.00);
   --overlay: oklch(100.00% 0.0000 0.00);
@@ -52,6 +53,9 @@
   --radius: 0.25rem;
   --field-radius: 0.25rem;
 
+  /* No gap, in the background color, between a focused element and its ring. */
+  --ring-offset-width: 0px;
+
   /* Font Family */
   /* Make sure to load Inter font in your app */
   --font-sans: var(--font-inter);
@@ -73,7 +77,7 @@
   --field-border: transparent;
   --field-foreground: oklch(99.11% 0.0000 0.00);
   --field-placeholder: oklch(70.50% 0.0000 0.00);
-  --focus: oklch(0.9848 0 0);
+  --focus: transparent;
   --foreground: oklch(99.11% 0.0000 0.00);
   --muted: oklch(70.50% 0.0000 0.00);
   --overlay: oklch(21.03% 0.0000 0.00);
