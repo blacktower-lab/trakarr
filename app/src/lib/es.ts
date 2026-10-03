@@ -29,7 +29,6 @@ export const ES: Record<string, string> = {
   "Change": "Cambiar",
   "Change password": "Cambiar contraseña",
   "Change quota": "Cambiar cuota",
-  "Change quota · {name}": "Cambiar cuota · {name}",
   "Change the indexer's sync profile when held": "Cambia el perfil de sincronización del indexador al retener",
   "Changes when held": "Cambia al retener",
   "Clock": "Reloj",

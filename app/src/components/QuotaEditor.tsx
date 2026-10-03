@@ -1,4 +1,4 @@
-import { Button, FieldError, Label, Modal, NumberField, Separator } from "@heroui/react";
+import { Button, FieldError, Input, Label, Modal, NumberField, Separator, TextField } from "@heroui/react";
 import { useState } from "react";
 import type { QuotaChange } from "../lib/api";
 import { freeleechLeft, ratioOf, toBytes, type TrackerRow } from "../lib/data";
@@ -87,11 +87,16 @@ function QuotaForm({ tracker, onSave }: { tracker: TrackerRow; onSave: (change: 
     <>
       <Modal.CloseTrigger />
       <Modal.Header>
-        <Modal.Heading>{t("Change quota · {name}", { name: tracker.name })}</Modal.Heading>
+        <Modal.Heading>{t("Change quota")}</Modal.Heading>
       </Modal.Header>
 
       <Modal.Body>
         <div className="flex flex-col gap-6">
+          <TextField variant={FIELD_VARIANT} value={tracker.name} isDisabled>
+            <Label>{t("Tracker")}</Label>
+            <Input />
+          </TextField>
+
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted">
               {rich(t, "Bought so far {size}", { size: <Value>{format.gib(tracker.boughtGiB)}</Value> })}
