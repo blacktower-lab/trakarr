@@ -3,11 +3,54 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>trakarr · Your ratio, guarded</title>
+    <title>Trakarr | Your ratio, guarded</title>
     <meta
       name="description"
       content="trakarr watches qBittorrent and holds a private tracker's downloads when its ratio drops, then releases them once seeding brings it back."
     />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://blacktower-lab.github.io/trakarr/" />
+    <link rel="sitemap" type="application/xml" href="sitemap.xml" />
+
+    <!-- How a shared link looks. The cover is the README's banner on a 1200 by
+         630 canvas, since link previews don't draw SVG. Their addresses are
+         absolute because the crawlers read them away from the page. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Trakarr" />
+    <meta property="og:url" content="https://blacktower-lab.github.io/trakarr/" />
+    <meta property="og:title" content="Trakarr | Your ratio, guarded" />
+    <meta
+      property="og:description"
+      content="trakarr watches qBittorrent and holds a private tracker's downloads when its ratio drops, then releases them once seeding brings it back."
+    />
+    <meta property="og:image" content="https://blacktower-lab.github.io/trakarr/cover.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="trakarr: Keep your ratio guarded! The mark, a magnet, next to a chart of a ratio that falls to the hold line and climbs back to the release line." />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Trakarr | Your ratio, guarded" />
+    <meta
+      name="twitter:description"
+      content="trakarr watches qBittorrent and holds a private tracker's downloads when its ratio drops, then releases them once seeding brings it back."
+    />
+    <meta name="twitter:image" content="https://blacktower-lab.github.io/trakarr/cover.png" />
+    <meta name="twitter:image:alt" content="trakarr: Keep your ratio guarded! The mark, a magnet, next to a chart of a ratio that falls to the hold line and climbs back to the release line." />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "trakarr",
+        "description": "trakarr watches qBittorrent and holds a private tracker's downloads when its ratio drops, then releases them once seeding brings it back.",
+        "url": "https://blacktower-lab.github.io/trakarr/",
+        "image": "https://blacktower-lab.github.io/trakarr/cover.png",
+        "applicationCategory": "UtilitiesApplication",
+        "operatingSystem": "Linux",
+        "downloadUrl": "https://github.com/blacktower-lab/trakarr/releases/latest",
+        "sameAs": "https://github.com/blacktower-lab/trakarr",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
     <meta name="color-scheme" content="dark light" />
     <link rel="icon" href="../assets/logo.svg" type="image/svg+xml" />
     <link rel="stylesheet" href="../assets/logo.css" />
