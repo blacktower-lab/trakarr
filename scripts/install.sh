@@ -71,14 +71,24 @@ pick() {
   fi
 }
 
-# Shows a step of the work. In a whiptail run it is an infobox, which stays on
-# the screen until the next dialog, and it draws on the terminal itself because
-# the output of the work goes to a log. Without whiptail it is a line.
+# Shows a short step. In a whiptail run it is an infobox, which stays on the
+# screen until the next dialog. Without whiptail it is a line.
 step() {
   if [ "$ui" = whiptail ]; then
     whiptail --title trakarr --infobox "$*" 7 72 </dev/tty >/dev/tty
   else
     say "$*"
+  fi
+}
+
+# Shows how far the install is, as a percent and a message. In a whiptail run it
+# feeds the gauge through file descriptor 3, which install_release is given. The
+# step at 100 only fills the gauge, so it is not a line.
+progress() {
+  if [ "$ui" = whiptail ]; then
+    printf 'XXX\n%s\n%s\nXXX\n' "$1" "$2" >&3
+  elif [ "$1" -lt 100 ]; then
+    say "$2"
   fi
 }
 
@@ -158,6 +168,7 @@ latest() {
   printf '%s' "$version"
 }
 
+intro=
 found=0
 if [ -d "$dir" ] || [ -f "$unit" ] || [ -d "$data" ]; then found=1; fi
 current=$(cat "$dir/VERSION" 2>/dev/null || true)
@@ -214,9 +225,9 @@ if [ "$found" = 1 ]; then
     esac
   fi
   if [ "$same" = 1 ]; then
-    step "Installing trakarr $version again"
+    intro="Installing trakarr $version again"
   elif [ -n "$current" ]; then
-    step "Upgrading trakarr from $current to $version"
+    intro="Upgrading trakarr from $current to $version"
   fi
 fi
 
@@ -224,11 +235,12 @@ command -v apt-get >/dev/null || die "this needs Debian or Ubuntu"
 export DEBIAN_FRONTEND=noninteractive
 
 # Installs Node.js when it is missing, then the release, and starts the service.
+# It reports its steps with progress.
 install_release() {
   # The server runs its TypeScript directly, which takes Node.js 24. Debian's own
   # package is older, so it comes from NodeSource.
   if ! node -e 'process.exit(+(process.versions.node.split(".")[0] < 24))' 2>/dev/null; then
-    step "Installing Node.js 24"
+    progress 5 "Installing Node.js 24"
     apt-get update -qq
     apt-get install -y -qq ca-certificates curl gnupg >/dev/null
     install -d -m 0755 /etc/apt/keyrings
@@ -240,14 +252,15 @@ install_release() {
 
   tmp=$(mktemp -d)
   trap 'rm -rf "$tmp"' EXIT
-  step "Downloading trakarr $version"
+  progress 30 "Downloading trakarr $version"
   curl -fsSL "$url" -o "$tmp/release.tar.gz" || die "could not download $url"
+  progress 60 "Unpacking trakarr $version"
   mkdir "$tmp/app"
   tar -xzf "$tmp/release.tar.gz" --no-same-owner --strip-components=1 -C "$tmp/app"
   [ -f "$tmp/app/server/src/main.ts" ] || die "that is not a trakarr release"
   echo "$version" >"$tmp/app/VERSION"
 
-  step "Installing trakarr"
+  progress 75 "Installing trakarr"
   install -d -m 0700 "$data"
   cat >"$unit" <<EOF
 [Unit]
@@ -272,19 +285,23 @@ EOF
   mv "$tmp/app" "$dir"
   systemctl daemon-reload
   systemctl enable -q trakarr
+  progress 90 "Starting trakarr"
   systemctl restart trakarr
   sleep 2
   systemctl is-active -q trakarr || die "trakarr did not start, see: journalctl -u trakarr"
+  progress 100 "trakarr is running"
 }
 
 if [ "$ui" = whiptail ]; then
-  # The output of the work goes to a log, so it does not draw over the dialogs.
-  # A failure shows the end of the log. set -e is turned off around the call,
+  # The gauge reads the steps of the work from a pipe, on descriptor 3. The
+  # output of the work goes to a log, so it does not draw over the gauge. A
+  # failure shows the end of the log. set -e is turned off around the pipeline,
   # because it has no effect in a command that is part of a test.
   log=$(mktemp)
+  work() { (set -e; install_release) 3>&1 >"$log" 2>&1; }
   set +e
-  (set -e; install_release) >"$log" 2>&1
-  status=$?
+  work | whiptail --title trakarr --gauge "${intro:-Installing trakarr $version}" 7 72 0 >/dev/tty
+  status=${PIPESTATUS[0]}
   set -e
   if [ "$status" != 0 ]; then
     whiptail --title "Installation failed" --scrolltext --msgbox "$(tail -n 12 "$log")" 20 78 </dev/tty >/dev/tty || true
@@ -295,6 +312,7 @@ if [ "$ui" = whiptail ]; then
   fi
   rm -f "$log"
 else
+  if [ -n "$intro" ]; then say "$intro"; fi
   install_release
 fi
 
