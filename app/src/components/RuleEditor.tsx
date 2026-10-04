@@ -4,6 +4,7 @@ import {
   FieldError,
   Input,
   Label,
+  Link,
   Modal,
   NumberField,
   Separator,
@@ -40,9 +41,11 @@ interface RuleEditorProps {
   onOpenChange: (open: boolean) => void;
   // Resolves once the save is over. The caller closes the dialog if it worked.
   onSave: (fields: RuleFields) => Promise<void>;
+  // Asks to delete the rule. A new rule has none to delete, so it has no link for it.
+  onDelete?: () => void;
 }
 
-export function RuleEditor({ open, rule, draft, session, onOpenChange, onSave }: RuleEditorProps) {
+export function RuleEditor({ open, rule, draft, session, onOpenChange, onSave, onDelete }: RuleEditorProps) {
   const t = useT();
   return (
     <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange}>
@@ -50,7 +53,9 @@ export function RuleEditor({ open, rule, draft, session, onOpenChange, onSave }:
       <Modal.Container size="lg" scroll="inside">
         {/* No visible title, so the dialog is named here. */}
         <Modal.Dialog aria-label={rule ? t("Edit rule") : t("New rule")}>
-          {session > 0 && <RuleForm key={session} rule={rule ?? { ...NEW_RULE, ...draft }} onSave={onSave} />}
+          {session > 0 && (
+            <RuleForm key={session} rule={rule ?? { ...NEW_RULE, ...draft }} onSave={onSave} onDelete={onDelete} />
+          )}
         </Modal.Dialog>
       </Modal.Container>
     </Modal.Backdrop>
@@ -105,7 +110,13 @@ const RATIO_FORMAT = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
 // How long typing stops before the match is previewed.
 const PREVIEW_DELAY_MS = 300;
 
-function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) => Promise<void> }) {
+interface RuleFormProps {
+  rule: Rule;
+  onSave: (fields: RuleFields) => Promise<void>;
+  onDelete?: () => void;
+}
+
+function RuleForm({ rule, onSave, onDelete }: RuleFormProps) {
   const t = useT();
   const format = useFormat();
   const [name, setName] = useState(rule.name);
@@ -308,6 +319,10 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
                     release: <Value>{format.number(releaseAt, 2)}</Value>,
                   })}
             </p>
+            <p className={cx("text-sm", matchShown ? "text-danger" : "text-muted")}>
+              {matchShown ??
+                (reach.torrents === 1 ? t("1 torrent matches") : t("{count} torrents match", { count: reach.torrents }))}
+            </p>
           </div>
 
           <Separator />
@@ -366,10 +381,12 @@ function RuleForm({ rule, onSave }: { rule: Rule; onSave: (fields: RuleFields) =
       </Modal.Body>
 
       <Modal.Footer>
-        <p className={cx("mr-auto text-sm", matchShown ? "text-danger" : "text-muted")}>
-          {matchShown ??
-            (reach.torrents === 1 ? t("1 torrent matches") : t("{count} torrents match", { count: reach.torrents }))}
-        </p>
+        {/* The footer's buttons are at its end, so the margin takes the link to its start. */}
+        {onDelete && (
+          <div className="mr-auto">
+            <Link onPress={onDelete}>{t("Delete rule")}</Link>
+          </div>
+        )}
         <Button slot="close" variant="secondary">
           {t("Cancel")}
         </Button>

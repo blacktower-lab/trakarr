@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AuthGate } from "./components/AuthGate";
+import { DeleteRuleDialog } from "./components/DeleteRuleDialog";
 import { Listed } from "./components/Empty";
 import { Logo } from "./components/Logo";
 import "../../assets/wordmark.css";
@@ -143,6 +144,8 @@ function Shell() {
   const [editing, setEditing] = useState<{ rule?: Rule; draft?: Partial<Rule>; session: number }>({ session: 0 });
   const [editorOpen, setEditorOpen] = useState(false);
 
+  const edited = editing.rule;
+
   const openEditor = (rule?: Rule, draft?: Partial<Rule>) => {
     setEditing((current) => ({ rule, draft, session: current.session + 1 }));
     setEditorOpen(true);
@@ -162,6 +165,16 @@ function Shell() {
     toast.success(rule ? t("{name} saved", { name: fields.name }) : t("{name} added", { name: fields.name }));
   };
 
+  // The rule being deleted, asked about before it goes. It stays set while the dialog animates closed.
+  const [deleting, setDeleting] = useState<Rule>();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const askDelete = (rule: Rule) => {
+    setDeleting(rule);
+    setDeleteOpen(true);
+  };
+
+  // A failed delete keeps the editor open, like a failed save.
   const deleteRule = async (rule: Rule) => {
     try {
       await api.deleteRule(rule.id);
@@ -169,6 +182,7 @@ function Shell() {
       toast.danger(t("Couldn't delete {name}", { name: rule.name }), { description: (error as Error).message });
       return;
     }
+    setEditorOpen(false);
     live.refresh();
     toast(t("{name} deleted", { name: rule.name }));
   };
@@ -261,7 +275,7 @@ function Shell() {
             onToggleEnabled={toggleEnabled}
           />
         ) : page === "rules" ? (
-          <Rules rules={data?.rules} error={error} onNew={() => openEditor()} onEdit={(rule) => openEditor(rule)} onDelete={deleteRule} />
+          <Rules rules={data?.rules} error={error} onNew={() => openEditor()} onEdit={(rule) => openEditor(rule)} onDelete={askDelete} />
         ) : page === "logs" ? (
           <Logs />
         ) : (
@@ -276,7 +290,10 @@ function Shell() {
         session={editing.session}
         onOpenChange={setEditorOpen}
         onSave={saveRule}
+        onDelete={edited ? () => askDelete(edited) : undefined}
       />
+
+      <DeleteRuleDialog open={deleteOpen} rule={deleting} onOpenChange={setDeleteOpen} onConfirm={deleteRule} />
 
       <QuotaEditor
         open={quotaOpen}
