@@ -82,11 +82,14 @@ step() {
   fi
 }
 
-# Tells the result. In a whiptail run it is a message box that clears the screen
-# when it closes. The line is printed too, so it stays in the terminal.
+# Tells the result. In a whiptail run it is a message box, and the screen is
+# cleared when it closes: the --clear option of whiptail leaves the blue
+# background in part of the screen. The line is printed too, so it stays in the
+# terminal.
 result() {
   if [ "$ui" = whiptail ]; then
-    whiptail --title trakarr --clear --msgbox "$*" 8 72 </dev/tty >/dev/tty || true
+    whiptail --title trakarr --msgbox "$*" 8 72 </dev/tty >/dev/tty || true
+    clear || true
   fi
   say "$*"
 }
@@ -284,7 +287,8 @@ if [ "$ui" = whiptail ]; then
   status=$?
   set -e
   if [ "$status" != 0 ]; then
-    whiptail --title "Installation failed" --clear --scrolltext --msgbox "$(tail -n 12 "$log")" 20 78 </dev/tty >/dev/tty || true
+    whiptail --title "Installation failed" --scrolltext --msgbox "$(tail -n 12 "$log")" 20 78 </dev/tty >/dev/tty || true
+    clear || true
     tail -n 12 "$log" >&2
     rm -f "$log"
     exit 1
