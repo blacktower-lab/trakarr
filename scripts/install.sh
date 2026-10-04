@@ -53,8 +53,9 @@ pick() {
   shift 2
   if [ "$ui" = whiptail ]; then
     items=$(($# / 2))
-    # whiptail prints the chosen tag on stderr, so it is swapped with stdout.
-    answer=$(whiptail --title trakarr --default-item "$default" --menu "$text" \
+    # whiptail prints the chosen tag on stderr, so it is swapped with stdout. The
+    # tags are only for the script, so the menu shows the labels alone.
+    answer=$(whiptail --title trakarr --default-item "$default" --notags --menu "$text" \
       $(($(printf '%s\n' "$text" | wc -l) + items + 7)) 72 "$items" "$@" 3>&1 1>&2 2>&3 </dev/tty) || answer=q
   else
     say "$text"
