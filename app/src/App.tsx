@@ -21,7 +21,7 @@ import {
   Settings as SettingsIcon,
   SlidersHorizontal,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AuthGate } from "./components/AuthGate";
 import { Listed } from "./components/Empty";
 import { Logo } from "./components/Logo";
@@ -123,6 +123,10 @@ type SortDescriptor = NonNullable<Table["ContentProps"]["sortDescriptor"]>;
 function Shell() {
   const t = useT();
   const [page, setPage] = useState<Page>("dashboard");
+  // The browser tab names the page, in the chosen language.
+  useEffect(() => {
+    document.title = `Trakarr | ${t(PAGES[page].label)}`;
+  }, [page, t]);
   // The only poll: the rules, their live numbers and the recent events come
   // together, and everything below reads from them.
   const live = usePoll<Live>(
