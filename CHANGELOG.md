@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.1.1
+
+### New features
+
+- [2807182](https://github.com/blacktower-lab/trakarr/commit/2807182) Show a progress bar while installing
+- [030abe5](https://github.com/blacktower-lab/trakarr/commit/030abe5) Show the steps and the result inside whiptail
+- [c157b3e](https://github.com/blacktower-lab/trakarr/commit/c157b3e) Show the menus in whiptail dialogs
+- [b9a070d](https://github.com/blacktower-lab/trakarr/commit/b9a070d) Find an installation and offer to upgrade or remove it
+
+### Improvements
+
+- [b13be3f](https://github.com/blacktower-lab/trakarr/commit/b13be3f) Use the whiptail buttons to select and quit
+- [6854ada](https://github.com/blacktower-lab/trakarr/commit/6854ada) Hide the option letters in the whiptail menu
+
+### Bug fixes
+
+- [97a760e](https://github.com/blacktower-lab/trakarr/commit/97a760e) Clear the screen after the whiptail dialogs
+
 ## v1.1.0
 
 ### Breaking changes
