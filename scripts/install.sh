@@ -2,7 +2,8 @@
 # Installs trakarr on a Debian or Ubuntu machine, such as a Proxmox LXC: Node.js
 # 24, the latest release in /opt/trakarr and a systemd service. Settings, rules
 # and the database are kept in /var/lib/trakarr.
-# Run it again to upgrade or to remove trakarr: it finds the installation and asks.
+# Run it again to upgrade or to remove trakarr: it finds the installation and asks,
+# with whiptail dialogs.
 # Usage, as root: bash -c "$(curl -fsSL https://raw.githubusercontent.com/blacktower-lab/trakarr/main/scripts/install.sh)"
 #
 # TRAKARR_TARBALL, a URL to a tarball made by package.sh, installs that instead
@@ -22,11 +23,49 @@ die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 # the script. With no terminal the script asks nothing and upgrades.
 if ( : </dev/tty ) 2>/dev/null; then interactive=1; else interactive=0; fi
 
-# Asks a question and leaves the reply in $answer. A closed terminal is a q, so
-# it never takes the default.
+# The menus are whiptail dialogs. Without whiptail, or with a terminal that
+# cannot draw them, the script asks in plain text.
+ui=text
+
+# Asks a question in plain text and leaves the reply in $answer. A closed
+# terminal is a q, so it never takes the default.
 ask() {
   printf '%s' "$1" >/dev/tty
   read -r answer </dev/tty || answer=q
+}
+
+# Succeeds when the menus can be whiptail dialogs. A minimal machine can lack
+# whiptail, so it is installed when it is missing.
+use_whiptail() {
+  [ "${TERM:-dumb}" != dumb ] || return 1
+  if ! command -v whiptail >/dev/null; then
+    command -v apt-get >/dev/null || return 1
+    say "Installing whiptail"
+    DEBIAN_FRONTEND=noninteractive apt-get update -qq >/dev/null 2>&1 || true
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq whiptail >/dev/null 2>&1 || return 1
+  fi
+}
+
+# Shows a menu and leaves the chosen tag in $answer, or q when it is closed.
+# The arguments are the default tag, the message, then each tag and its label.
+pick() {
+  local default=$1 text=$2 items
+  shift 2
+  if [ "$ui" = whiptail ]; then
+    items=$(($# / 2))
+    # whiptail prints the chosen tag on stderr, so it is swapped with stdout.
+    answer=$(whiptail --title trakarr --default-item "$default" --menu "$text" \
+      $(($(printf '%s\n' "$text" | wc -l) + items + 7)) 72 "$items" "$@" 3>&1 1>&2 2>&3 </dev/tty) || answer=q
+  else
+    say "$text"
+    while [ $# -gt 0 ]; do
+      printf '  %s  %s\n' "$1" "$2"
+      shift 2
+    done
+    ask "Select [default: $default]: "
+    answer=$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')
+    [ -n "$answer" ] || answer=$default
+  fi
 }
 
 [ "$(id -u)" = 0 ] || die "run this as root"
@@ -45,21 +84,31 @@ uninstall() {
   printf '  apt-get remove nodejs && rm -f /etc/apt/sources.list.d/nodesource.list /etc/apt/keyrings/nodesource.gpg\n'
 }
 
-# Says what the removal deletes and removes it after a yes.
+# Says what the removal deletes and removes it after a yes. No is the default.
 remove() {
-  cat <<EOF
-
+  local text
+  text=$(cat <<EOF
 This deletes trakarr and all its data:
-  $dir  (the application)
-  $unit  (the service)
-  $data  (the settings, the rules and the database)
+
+  $dir (the application)
+  $unit (the service)
+  $data (the settings, the rules and the database)
 
 The data includes the API keys of qBittorrent and Prowlarr. You cannot restore it.
-trakarr does not release what it holds. After it is gone, a held torrent stays
-held, and a Prowlarr indexer stays on its held sync profile.
 
+trakarr does not release what it holds. After it is gone, a held torrent stays held, and a Prowlarr indexer stays on its held sync profile.
 EOF
-  ask "Delete trakarr and all its data? [y/N] "
+)
+  if [ "$ui" = whiptail ]; then
+    if whiptail --title "Remove trakarr" --defaultno --yes-button Remove --no-button Cancel --yesno "$text" 20 72 </dev/tty; then
+      answer=y
+    else
+      answer=n
+    fi
+  else
+    printf '\n%s\n\n' "$text"
+    ask "Delete trakarr and all its data? [y/N] "
+  fi
   case $answer in
     y | Y | yes | YES) uninstall ;;
     *) say "Nothing changed" ;;
@@ -108,27 +157,27 @@ if [ "$found" = 1 ]; then
       exit 0
     fi
   elif [ "$same" = 1 ]; then
-    say "trakarr $current is installed, and it is the latest release."
-    printf '  i  Install it again\n  r  Remove trakarr and all its data\n  q  Quit (default)\n'
-    ask "Select [i/r/Q]: "
+    if use_whiptail; then ui=whiptail; fi
+    pick q "trakarr $current is installed, and it is the latest release." \
+      i "Install it again" r "Remove trakarr and all its data" q "Quit"
     case $answer in
-      i | I) ;;
-      r | R) remove ;;
+      i) ;;
+      r) remove ;;
       *) say "Nothing changed"; exit 0 ;;
     esac
   else
+    if use_whiptail; then ui=whiptail; fi
     if [ -n "$current" ]; then
-      say "trakarr $current is installed. The new version is $target."
-      printf '  u  Upgrade to %s (default)\n' "$target"
+      header="trakarr $current is installed. The new version is $target."
+      label="Upgrade to $target"
     else
-      say "Found the files of an earlier trakarr install."
-      printf '  u  Install %s (default)\n' "$target"
+      header="Found the files of an earlier trakarr install."
+      label="Install $target"
     fi
-    printf '  r  Remove trakarr and all its data\n  q  Quit\n'
-    ask "Select [U/r/q]: "
+    pick u "$header" u "$label" r "Remove trakarr and all its data" q "Quit"
     case $answer in
-      "" | u | U) ;;
-      r | R) remove ;;
+      u) ;;
+      r) remove ;;
       *) say "Nothing changed"; exit 0 ;;
     esac
   fi

@@ -28,10 +28,10 @@ dashboard is on port 7478.
 
 To upgrade or to remove trakarr, run the same command again. The script finds
 the installation, shows the installed version and the latest release, and asks
-what to do. Remove deletes the application, the service and everything in
-`/var/lib/trakarr`. It does not remove Node.js. With no terminal, the script
-upgrades and asks nothing. To remove trakarr with no questions, start the script
-with `TRAKARR_UNINSTALL=1`.
+what to do in a whiptail dialog, which it installs when it is missing. Remove
+deletes the application, the service and everything in `/var/lib/trakarr`. It
+does not remove Node.js. With no terminal, the script upgrades and asks nothing.
+To remove trakarr with no questions, start the script with `TRAKARR_UNINSTALL=1`.
 
 Then connect qBittorrent in Settings > Integrations with an API key from its
 WebUI options, which needs qBittorrent 5.2 or later, add a rule, and turn test
