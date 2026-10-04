@@ -71,18 +71,44 @@ pick() {
   fi
 }
 
+# Shows a step of the work. In a whiptail run it is an infobox, which stays on
+# the screen until the next dialog, and it draws on the terminal itself because
+# the output of the work goes to a log. Without whiptail it is a line.
+step() {
+  if [ "$ui" = whiptail ]; then
+    whiptail --title trakarr --infobox "$*" 7 72 </dev/tty >/dev/tty
+  else
+    say "$*"
+  fi
+}
+
+# Tells the result. In a whiptail run it is a message box that clears the screen
+# when it closes. The line is printed too, so it stays in the terminal.
+result() {
+  if [ "$ui" = whiptail ]; then
+    whiptail --title trakarr --clear --msgbox "$*" 8 72 </dev/tty >/dev/tty || true
+  fi
+  say "$*"
+}
+
+# Ends with no change. The dialog is cleared first, so the line is not under it.
+nothing() {
+  if [ "$ui" = whiptail ]; then clear || true; fi
+  say "Nothing changed"
+}
+
 [ "$(id -u)" = 0 ] || die "run this as root"
 command -v systemctl >/dev/null || die "this needs systemd"
 
 # Removes the service, the application and the data. Node.js stays: other
 # programs can use it, and the script cannot know if it installed it.
 uninstall() {
-  say "Removing trakarr"
-  systemctl disable --now trakarr 2>/dev/null || true
+  step "Removing trakarr"
+  systemctl disable --now trakarr >/dev/null 2>&1 || true
   rm -f "$unit"
   systemctl daemon-reload
   rm -rf "$dir" "$data"
-  say "trakarr is removed"
+  result "trakarr is removed"
   printf 'Node.js is still installed. To remove it, run:\n'
   printf '  apt-get remove nodejs && rm -f /etc/apt/sources.list.d/nodesource.list /etc/apt/keyrings/nodesource.gpg\n'
 }
@@ -114,7 +140,7 @@ EOF
   fi
   case $answer in
     y | Y | yes | YES) uninstall ;;
-    *) say "Nothing changed" ;;
+    *) nothing ;;
   esac
   exit 0
 }
@@ -166,7 +192,7 @@ if [ "$found" = 1 ]; then
     case $answer in
       i) ;;
       r) remove ;;
-      *) say "Nothing changed"; exit 0 ;;
+      *) nothing; exit 0 ;;
     esac
   else
     if use_whiptail; then ui=whiptail; fi
@@ -181,44 +207,46 @@ if [ "$found" = 1 ]; then
     case $answer in
       u) ;;
       r) remove ;;
-      *) say "Nothing changed"; exit 0 ;;
+      *) nothing; exit 0 ;;
     esac
   fi
   if [ "$same" = 1 ]; then
-    say "Installing trakarr $version again"
+    step "Installing trakarr $version again"
   elif [ -n "$current" ]; then
-    say "Upgrading trakarr from $current to $version"
+    step "Upgrading trakarr from $current to $version"
   fi
 fi
 
 command -v apt-get >/dev/null || die "this needs Debian or Ubuntu"
 export DEBIAN_FRONTEND=noninteractive
 
-# The server runs its TypeScript directly, which takes Node.js 24. Debian's own
-# package is older, so it comes from NodeSource.
-if ! node -e 'process.exit(+(process.versions.node.split(".")[0] < 24))' 2>/dev/null; then
-  say "Installing Node.js 24"
-  apt-get update -qq
-  apt-get install -y -qq ca-certificates curl gnupg >/dev/null
-  install -d -m 0755 /etc/apt/keyrings
-  curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" >/etc/apt/sources.list.d/nodesource.list
-  apt-get update -qq
-  apt-get install -y -qq nodejs >/dev/null
-fi
+# Installs Node.js when it is missing, then the release, and starts the service.
+install_release() {
+  # The server runs its TypeScript directly, which takes Node.js 24. Debian's own
+  # package is older, so it comes from NodeSource.
+  if ! node -e 'process.exit(+(process.versions.node.split(".")[0] < 24))' 2>/dev/null; then
+    step "Installing Node.js 24"
+    apt-get update -qq
+    apt-get install -y -qq ca-certificates curl gnupg >/dev/null
+    install -d -m 0755 /etc/apt/keyrings
+    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --yes -o /etc/apt/keyrings/nodesource.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" >/etc/apt/sources.list.d/nodesource.list
+    apt-get update -qq
+    apt-get install -y -qq nodejs >/dev/null
+  fi
 
-tmp=$(mktemp -d)
-trap 'rm -rf "$tmp"' EXIT
-say "Downloading trakarr $version"
-curl -fsSL "$url" -o "$tmp/release.tar.gz" || die "could not download $url"
-mkdir "$tmp/app"
-tar -xzf "$tmp/release.tar.gz" --no-same-owner --strip-components=1 -C "$tmp/app"
-[ -f "$tmp/app/server/src/main.ts" ] || die "that is not a trakarr release"
-echo "$version" >"$tmp/app/VERSION"
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  step "Downloading trakarr $version"
+  curl -fsSL "$url" -o "$tmp/release.tar.gz" || die "could not download $url"
+  mkdir "$tmp/app"
+  tar -xzf "$tmp/release.tar.gz" --no-same-owner --strip-components=1 -C "$tmp/app"
+  [ -f "$tmp/app/server/src/main.ts" ] || die "that is not a trakarr release"
+  echo "$version" >"$tmp/app/VERSION"
 
-say "Installing trakarr"
-install -d -m 0700 "$data"
-cat >"$unit" <<EOF
+  step "Installing trakarr"
+  install -d -m 0700 "$data"
+  cat >"$unit" <<EOF
 [Unit]
 Description=trakarr
 After=network-online.target
@@ -236,14 +264,35 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
-systemctl stop trakarr 2>/dev/null || true
-rm -rf "$dir"
-mv "$tmp/app" "$dir"
-systemctl daemon-reload
-systemctl enable -q trakarr
-systemctl restart trakarr
-sleep 2
-systemctl is-active -q trakarr || die "trakarr did not start, see: journalctl -u trakarr"
+  systemctl stop trakarr 2>/dev/null || true
+  rm -rf "$dir"
+  mv "$tmp/app" "$dir"
+  systemctl daemon-reload
+  systemctl enable -q trakarr
+  systemctl restart trakarr
+  sleep 2
+  systemctl is-active -q trakarr || die "trakarr did not start, see: journalctl -u trakarr"
+}
+
+if [ "$ui" = whiptail ]; then
+  # The output of the work goes to a log, so it does not draw over the dialogs.
+  # A failure shows the end of the log. set -e is turned off around the call,
+  # because it has no effect in a command that is part of a test.
+  log=$(mktemp)
+  set +e
+  (set -e; install_release) >"$log" 2>&1
+  status=$?
+  set -e
+  if [ "$status" != 0 ]; then
+    whiptail --title "Installation failed" --clear --scrolltext --msgbox "$(tail -n 12 "$log")" 20 78 </dev/tty >/dev/tty || true
+    tail -n 12 "$log" >&2
+    rm -f "$log"
+    exit 1
+  fi
+  rm -f "$log"
+else
+  install_release
+fi
 
 ip=$(hostname -I 2>/dev/null | awk '{print $1}')
-say "trakarr $version is running at http://${ip:-localhost}:7478"
+result "trakarr $version is running at http://${ip:-localhost}:7478"
