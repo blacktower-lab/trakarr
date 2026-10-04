@@ -46,16 +46,17 @@ use_whiptail() {
   fi
 }
 
-# Shows a menu and leaves the chosen tag in $answer, or q when it is closed.
-# The arguments are the default tag, the message, then each tag and its label.
+# Shows a menu and leaves the chosen tag in $answer, or q when the user quits.
+# The arguments are the message, then each tag and its label. The first option
+# is the default. Quit is not an option: it is the Cancel button, or Esc.
 pick() {
-  local default=$1 text=$2 items
-  shift 2
+  local text=$1 default=$2 items
+  shift
+  items=$(($# / 2))
   if [ "$ui" = whiptail ]; then
-    items=$(($# / 2))
     # whiptail prints the chosen tag on stderr, so it is swapped with stdout. The
     # tags are only for the script, so the menu shows the labels alone.
-    answer=$(whiptail --title trakarr --default-item "$default" --notags --menu "$text" \
+    answer=$(whiptail --title trakarr --notags --ok-button Select --cancel-button Quit --menu "$text" \
       $(($(printf '%s\n' "$text" | wc -l) + items + 7)) 72 "$items" "$@" 3>&1 1>&2 2>&3 </dev/tty) || answer=q
   else
     say "$text"
@@ -63,6 +64,7 @@ pick() {
       printf '  %s  %s\n' "$1" "$2"
       shift 2
     done
+    printf '  q  Quit\n'
     ask "Select [default: $default]: "
     answer=$(printf '%s' "$answer" | tr '[:upper:]' '[:lower:]')
     [ -n "$answer" ] || answer=$default
@@ -101,7 +103,7 @@ trakarr does not release what it holds. After it is gone, a held torrent stays h
 EOF
 )
   if [ "$ui" = whiptail ]; then
-    if whiptail --title "Remove trakarr" --defaultno --yes-button Remove --no-button Cancel --yesno "$text" 20 72 </dev/tty; then
+    if whiptail --title "Remove trakarr" --defaultno --scrolltext --yes-button Remove --no-button Cancel --yesno "$text" 20 72 </dev/tty; then
       answer=y
     else
       answer=n
@@ -159,8 +161,8 @@ if [ "$found" = 1 ]; then
     fi
   elif [ "$same" = 1 ]; then
     if use_whiptail; then ui=whiptail; fi
-    pick q "trakarr $current is installed, and it is the latest release." \
-      i "Install it again" r "Remove trakarr and all its data" q "Quit"
+    pick "trakarr $current is installed, and it is the latest release." \
+      i "Install it again" r "Remove trakarr and all its data"
     case $answer in
       i) ;;
       r) remove ;;
@@ -175,7 +177,7 @@ if [ "$found" = 1 ]; then
       header="Found the files of an earlier trakarr install."
       label="Install $target"
     fi
-    pick u "$header" u "$label" r "Remove trakarr and all its data" q "Quit"
+    pick "$header" u "$label" r "Remove trakarr and all its data"
     case $answer in
       u) ;;
       r) remove ;;
